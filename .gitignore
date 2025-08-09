@@ -93,3 +93,4 @@ GRTAGS
 GTAGS
 *.a
 *.so*
+*.bin

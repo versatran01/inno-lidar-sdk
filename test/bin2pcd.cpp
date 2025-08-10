@@ -3,11 +3,15 @@
 #include <fstream>
 #include <istream>
 #include <optional>
+#include <pcl/impl/point_types.hpp>
 #include <vector>
 
 //
 #include <fmt/core.h>
 #include <glog/logging.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 
 #include <CLI/CLI.hpp>
 
@@ -39,12 +43,11 @@ std::vector<fs::path> GetAllFiles(const fs::path& dir,
   return files;
 }
 
-void FixInnoDataPacketV1(const InnoDataPacket* p) {
-  auto* packet = const_cast<InnoDataPacket*>(p);
-  packet->common.size += 16;
-  packet->common.version.major_version = InnoPacketV1Adapt::kInnoProtocolMajorV2;
-  packet->common.version.minor_version = InnoPacketV1Adapt::kInnoProtocolMinorV2;
-  InnoPacketReader::set_packet_crc32(&packet->common);
+void FixInnoDataPacketV1(InnoDataPacket* p) {
+  p->common.size += 16;
+  p->common.version.major_version = InnoPacketV1Adapt::kInnoProtocolMajorV2;
+  p->common.version.minor_version = InnoPacketV1Adapt::kInnoProtocolMinorV2;
+  InnoPacketReader::set_packet_crc32(&p->common);
 }
 
 class InnoLidarParser {
@@ -52,24 +55,17 @@ class InnoLidarParser {
   bool ProcessData(const std::vector<char>& data) {
     // Cast to header
     const auto* header = reinterpret_cast<const InnoCommonHeader*>(data.data());
-
-    if (header->version.magic_number == kInnoMagicNumberStatusPacket) {
-      LOG(INFO) << "Status packet";
-      return false;
-    }
-
     if (header->version.magic_number != kInnoMagicNumberDataPacket) {
       LOG(WARNING) << "Not data packet";
       return false;
     }
 
     const auto* packet = reinterpret_cast<const InnoDataPacket*>(data.data());
-    FixInnoDataPacketV1(packet);
+    FixInnoDataPacketV1(const_cast<InnoDataPacket*>(packet));
     CHECK(inno_lidar_check_data_packet(packet, 0));
 
-    LOG(INFO) << fmt::format(
-        "idx: {:3d}, sub_idx: {:3d}, sub_seq: {:5d}, "
-        "item: {:3d}, first: {}, last: {}",
+    VLOG(1) << fmt::format(
+        "idx: {:3d}, sub_idx: {:3d}, sub_seq: {:5d}, item: {:3d}, first: {}, last: {}",
         packet->idx,
         packet->sub_idx,
         packet->sub_seq,
@@ -77,60 +73,65 @@ class InnoLidarParser {
         packet->is_first_sub_frame,
         packet->is_last_sub_frame);
 
-    // for (std::size_t i = 0; i + 1 < data.size() && i < 500; ++i) {
-    //   std::uint16_t value;
-    //   std::memcpy(&value, &data[i], 2);
-    //   LOG(INFO) << fmt::format("data[{}]: {:#x}", i, value);
-    // }
-
-    // int gap = 0;
-    // if (packet->common.version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1) {
-    //   char* ptr = const_cast<char*>(data.data());
-    //   if (InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(&ptr, 0, gap)) {
-    //     LOG(INFO) << "Converted V1 packet";
-    //   } else {
-    //     LOG(WARNING) << "Got bad message";
-    //   }
-    // }
-    // inno_lidar_check_data_packet(packet, 0);
-
-    // if (!inno_lidar_check_data_packet(packet, 0)) {
-    //   LOG(INFO) << "Bad packet size";
-    // }
-
-    // if (header->version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1) {
-    //   LOG(INFO) << "Convert V1";
-    //   int gap = InnoPacketV1Adapt::kMemorryFrontGap;
-    //   char* ptr = data.data() + gap;
-    //   if (!InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(&ptr, 0, gap)) {
-    //     LOG(WARNING) << "Got bad message";
-    //   }
-    // }
-
-    // char *ptr = reinterpret_cast<char *>(data.data()) +
-    //             InnoPacketV1Adapt::kMemorryFrontGap;
-
-    // const int frame_id = packet->idx;
-
-    // if (packet->is_first_sub_frame) {
-    //   start_new_frame_ = true;
-    //   frame_data_.clear();
-    //   LOG(INFO) << "Start new frame: " << frame_id;
-    // }
-
-    // if (start_new_frame_) {
-    //   frame_data_.push_back(*packet);
-    // }
+    DecodePayload(*packet);
 
     // Update prev packet
-    // prev_packet_ = *packet;
+    prev_packet_ = *packet;
     return true;
   }
 
+  void DecodePayload(const InnoDataPacket& packet) {
+    if (CHECK_SPHERE_POINTCLOUD_DATA(packet.type)) {
+      DecodePayloadSphere(packet);
+    } else if (CHECK_XYZ_POINTCLOUD_DATA(packet.type)) {
+      LOG(INFO) << "Processing XYZ_POINTCLOUD";
+    }
+  }
+
+  void DecodePayloadSphere(const InnoDataPacket& packet) {
+    if (packet.type != INNO_ITEM_TYPE_SPHERE_POINTCLOUD) {
+      return;
+    }
+
+    uint32_t block_size{};
+    uint32_t num_return{};  // Number of return, should be 1
+    InnoDataPacketUtils::get_block_size_and_number_return(packet, &block_size, &num_return);
+
+    const auto item_type = InnoItemType(packet.type);
+
+    for (uint32_t i = 0; i < packet.item_number; ++i) {
+      const auto* block = reinterpret_cast<const InnoBlock*>(packet.payload + block_size * i);
+      //  LOG(INFO) << fmt::format("block: {:3d}, scan_id: {:3d}, scan_idx: {:3d}",
+      //                          i,
+      //                          block->header.scan_id,
+      //                          block->header.scan_idx);
+
+      InnoBlockFullAngles full_angles;
+      InnoDataPacketUtils::get_block_full_angles(&full_angles, block->header, item_type);
+
+      for (uint32_t chan = 0; chan < kInnoChannelNumber; chan++) {
+        for (uint32_t ret = 0; ret < num_return; ret++) {
+          const InnoChannelPoint& chan_pt = block->points[innoblock_get_idx(chan, ret)];
+          InnoXyzrD xyzr;
+
+          if (chan_pt.radius > 0) {
+            InnoDataPacketUtils::get_xyzr_meter(
+                full_angles.angles[chan], chan_pt.radius, chan, &xyzr);
+            pcl::PointXYZ pcl_pt;
+            pcl_pt.x = xyzr.x;
+            pcl_pt.y = xyzr.y;
+            pcl_pt.z = xyzr.z;
+            cloud_.push_back(pcl_pt);
+          }
+        }
+      }
+    }
+  }
+
+  const auto& cloud() const { return cloud_; }
+
  private:
-  bool start_new_frame_{false};
-  int gap_{InnoPacketV1Adapt::kMemorryFrontGap};
-  std::vector<InnoDataPacket> frame_data_;
+  pcl::PointCloud<pcl::PointXYZ> cloud_;
   std::optional<InnoDataPacket> prev_packet_;
 };
 
@@ -174,6 +175,8 @@ int main(int argc, char** argv) {
     data.resize(data.size() + 16);
 
     parser.ProcessData(data);
+
+    pcl::io::savePCDFile(fmt::format("{}/test.pcd", output_dir), parser.cloud());
   }
 
   return EXIT_SUCCESS;

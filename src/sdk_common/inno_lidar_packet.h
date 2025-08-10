@@ -10,9 +10,9 @@
 #define SDK_COMMON_INNO_LIDAR_PACKET_H_
 
 #include <math.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 #include "sdk_common/inno_faults_common.h"
 
@@ -55,25 +55,24 @@
 #endif
 
 #ifndef M_PI
-#define M_PI       3.14159265358979323846   // pi
+#define M_PI 3.14159265358979323846  // pi
 #endif
-
 
 /************
  Enums
 *************/
 enum InnoLidarMode {
   INNO_LIDAR_MODE_NONE = 0,
-  INNO_LIDAR_MODE_SLEEP = 1,               // falcon & robin
-  INNO_LIDAR_MODE_STANDBY = 2,             // falcon & robin
-  INNO_LIDAR_MODE_WORK_NORMAL = 3,         // falcon & robin
-  INNO_LIDAR_MODE_WORK_SHORT_RANGE = 4,    // falcon
-  INNO_LIDAR_MODE_WORK_CALIBRATION = 5,    // falcon & robin
-  INNO_LIDAR_MODE_PROTECTION = 6,          // falcon & robin
-  INNO_LIDAR_MODE_WORK_QUIET = 7,          // falcon
-  INNO_LIDAR_MODE_WORK_INTERNAL_1 = 8,     // falcon
-  INNO_LIDAR_MODE_FOTA = 9,                // [UDS upgrade & ADC FOTA]
-  INNO_LIDAR_MODE_WORK_EXHIBITION = 10,    // falcon
+  INNO_LIDAR_MODE_SLEEP = 1,             // falcon & robin
+  INNO_LIDAR_MODE_STANDBY = 2,           // falcon & robin
+  INNO_LIDAR_MODE_WORK_NORMAL = 3,       // falcon & robin
+  INNO_LIDAR_MODE_WORK_SHORT_RANGE = 4,  // falcon
+  INNO_LIDAR_MODE_WORK_CALIBRATION = 5,  // falcon & robin
+  INNO_LIDAR_MODE_PROTECTION = 6,        // falcon & robin
+  INNO_LIDAR_MODE_WORK_QUIET = 7,        // falcon
+  INNO_LIDAR_MODE_WORK_INTERNAL_1 = 8,   // falcon
+  INNO_LIDAR_MODE_FOTA = 9,              // [UDS upgrade & ADC FOTA]
+  INNO_LIDAR_MODE_WORK_EXHIBITION = 10,  // falcon
   INNO_LIDAR_MODE_WORK_MAX = 11,
 };
 
@@ -119,16 +118,16 @@ enum InnoLidarExFault {
 };
 
 enum InnoMessageLevel {
-  INNO_MESSAGE_LEVEL_FATAL    = 0,
+  INNO_MESSAGE_LEVEL_FATAL = 0,
   INNO_MESSAGE_LEVEL_CRITICAL = 1,
-  INNO_MESSAGE_LEVEL_ERROR    = 2,
-  INNO_MESSAGE_LEVEL_TEMP     = 3,
-  INNO_MESSAGE_LEVEL_WARNING  = 4,
-  INNO_MESSAGE_LEVEL_DEBUG    = 5,
-  INNO_MESSAGE_LEVEL_INFO     = 6,
-  INNO_MESSAGE_LEVEL_TRACE    = 7,
-  INNO_MESSAGE_LEVEL_DETAIL   = 8,
-  INNO_MESSAGE_LEVEL_MAX      = 9,
+  INNO_MESSAGE_LEVEL_ERROR = 2,
+  INNO_MESSAGE_LEVEL_TEMP = 3,
+  INNO_MESSAGE_LEVEL_WARNING = 4,
+  INNO_MESSAGE_LEVEL_DEBUG = 5,
+  INNO_MESSAGE_LEVEL_INFO = 6,
+  INNO_MESSAGE_LEVEL_TRACE = 7,
+  INNO_MESSAGE_LEVEL_DETAIL = 8,
+  INNO_MESSAGE_LEVEL_MAX = 9,
 };
 
 enum InnoMessageCode {
@@ -148,8 +147,8 @@ enum InnoMessageCode {
 };
 
 enum InnoFrameDirection {
-  INNO_FRAME_DIRECTION_DOWN = 0,  /* top->bottom   */
-  INNO_FRAME_DIRECTION_UP = 1,    /* bottom -> top */
+  INNO_FRAME_DIRECTION_DOWN = 0, /* top->bottom   */
+  INNO_FRAME_DIRECTION_UP = 1,   /* bottom -> top */
   INNO_FRAME_DIRECTION_MAX = 2,
 };
 
@@ -252,10 +251,7 @@ enum InnoVAngleDiffBase {
   kInnoRobinWVAngleDiffBase = 240,  // RobinW
 };
 
-enum InnoSetNumber {
-  kInnoRobinWMaxSetNumber = 6,
-  kInnoRobinELiteMaxSetNumber = 12
-};
+enum InnoSetNumber { kInnoRobinWMaxSetNumber = 6, kInnoRobinELiteMaxSetNumber = 12 };
 /************
  Simple types
 *************/
@@ -276,20 +272,21 @@ static const uint16_t kInnoMagicNumberDataPacket = 0x176A;
 static const uint8_t kInnoMajorVersionDataPacket = 4;  // upgrade Major version from 3->4 2024/8/16
 static const uint8_t kInnoMinorVersionDataPacket = 0;
 static const uint16_t kInnoMagicNumberStatusPacket = 0x186B;
-static const uint8_t kInnoMajorVersionStatusPacket = 4;  // upgrade Major version from 3->4 2023/8/16
+static const uint8_t kInnoMajorVersionStatusPacket =
+    4;  // upgrade Major version from 3->4 2023/8/16
 static const uint8_t kInnoMinorVersionStatusPacket = 0;
 
 static const uint32_t kInnoDistanceUnitPerMeter = 400;
 static const double kMeterPerInnoDistanceUnit = 1.0 / kInnoDistanceUnitPerMeter;
-static const double kMeterPerInnoDistanceUnit200 = 1.0 / kInnoDistanceUnitPerMeter200;  // falconK & falconK2
-static const double kMeterPerInnoDistanceUnit400 = 1.0 / kInnoDistanceUnitPerMeter400;  // robin & falcon2.1
+static const double kMeterPerInnoDistanceUnit200 =
+    1.0 / kInnoDistanceUnitPerMeter200;  // falconK & falconK2
+static const double kMeterPerInnoDistanceUnit400 =
+    1.0 / kInnoDistanceUnitPerMeter400;  // robin & falcon2.1
 static const uint32_t kInnoDegreePerPiRad = 180;
 static const uint32_t kInnoAngleUnitPerPiRad = 32768;
 static const double kRadPerInnoAngleUnit = M_PI / kInnoAngleUnitPerPiRad;
-static const double kDegreePerInnoAngleUnit =
-    180.0 / kInnoAngleUnitPerPiRad;
-static const double kInnoAngleUnitPerDegree =
-    kInnoAngleUnitPerPiRad / 180.0;
+static const double kDegreePerInnoAngleUnit = 180.0 / kInnoAngleUnitPerPiRad;
+static const double kInnoAngleUnitPerDegree = kInnoAngleUnitPerPiRad / 180.0;
 static const int32_t kInnoInvalidAngleInUnit = kInnoAngleUnitPerDegree * 90;
 static const uint32_t kInnoChannelNumberBit = INNO_CHANNEL_NUMBER_BIT;
 static const uint32_t kInnoChannelNumber = INNO_CHANNEL_NUMBER;
@@ -299,12 +296,13 @@ static const uint32_t kInnoCompactChannelNumberBit = INNO_COMPACT_CHANNEL_NUMBER
 static const uint32_t kInnoCompactChannelNumber = INNO_COMPACT_CHANNEL_NUMBER;
 
 static const int kPolygonMaxFacets = 4;
-static const int kPolygonMinAngle = - (45 * kInnoAngleUnitPerPiRad / kInnoDegreePerPiRad);
+static const int kPolygonMinAngle = -(45 * kInnoAngleUnitPerPiRad / kInnoDegreePerPiRad);
 static const int kPolygonMaxAngle = 45 * kInnoAngleUnitPerPiRad / kInnoDegreePerPiRad;
 static const int kEncoderTableShift = 8;  // table resolution
 static const int kEncoderTableStep = 1 << kEncoderTableShift;
 static const int kEncoderTableMask = kEncoderTableStep - 1;
-static const int kPolygonTableSize = ((kPolygonMaxAngle - kPolygonMinAngle) >> kEncoderTableShift) + 1;
+static const int kPolygonTableSize =
+    ((kPolygonMaxAngle - kPolygonMinAngle) >> kEncoderTableShift) + 1;
 static const int kMaxReceiverInSet = kInnoCompactChannelNumber;
 
 static const int kInnoBaseFaultEnd = 64;
@@ -409,7 +407,6 @@ enum InnoRecorderCallbackType {
   INNO_RECORDER_CALLBACK_TYPE_MAX = 9,
 };
 
-
 #if defined(__MINGW64__) || !defined(_WIN32)
 /* 17 bytes per block header */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoBlockHeader) {
@@ -421,23 +418,24 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoBlockHeader) {
   int16_t v_angle;
   /* relative timestamp (to ts_start_us) in 10us, 0-655,350us */
   uint16_t ts_10us;
-  uint16_t scan_idx;     /* point idx within the scan line */
-  uint16_t scan_id: 9;   /* id of the scan line */
+  uint16_t scan_idx;    /* point idx within the scan line */
+  uint16_t scan_id : 9; /* id of the scan line */
   // real angle is h_angle + h_angle_diff_1
-  int64_t h_angle_diff_1: 9;
-  int64_t h_angle_diff_2: 10;
-  int64_t h_angle_diff_3: 11;
+  int64_t h_angle_diff_1 : 9;
+  int64_t h_angle_diff_2 : 10;
+  int64_t h_angle_diff_3 : 11;
   // real angle is v_angle + v_angle_diff_1 + kVAngleDiffBase * channel
-  int64_t v_angle_diff_1: 8;  // 196 + [-128, 127]
-  int64_t v_angle_diff_2: 9;  // 392 + [-256, 255]
-  int64_t v_angle_diff_3: 9;  // 588 + [-256, 255]
+  int64_t v_angle_diff_1 : 8;  // 196 + [-128, 127]
+  int64_t v_angle_diff_2 : 9;  // 392 + [-256, 255]
+  int64_t v_angle_diff_3 : 9;  // 588 + [-256, 255]
   /*   0: in sparse region
     0x01: in vertical slow region
     0x11: in center ROI */
-  uint64_t in_roi: 2;
-  uint64_t facet: 3;
-  uint64_t reserved_flags: 2; /* all 0 */
-} InnoBlockHeader;
+  uint64_t in_roi : 2;
+  uint64_t facet : 3;
+  uint64_t reserved_flags : 2; /* all 0 */
+}
+InnoBlockHeader;
 DEFINE_INNO_COMPACT_STRUCT_END
 #else
 /* 17 bytes per block header */
@@ -450,7 +448,7 @@ DEFINE_INNO_COMPACT_STRUCT(InnoBlockHeader) {
   int16_t v_angle;
   /* relative timestamp (to ts_start_us) in 10us, 0-655,350us */
   uint16_t ts_10us;
-  uint16_t scan_idx;    /* point idx within the scan line */
+  uint16_t scan_idx; /* point idx within the scan line */
   union {
     uint16_t scan_id : 9; /* id of the scan line */
     struct {
@@ -481,7 +479,8 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoXyzrD) {
   double y;
   double z;
   double radius;
-} InnoXyzrD;
+}
+InnoXyzrD;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* compact format, 16 + 8 + 2 = 26 bytes per point */
@@ -491,65 +490,71 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoXyzPoint) {
   float z;
   float radius;
   uint16_t ts_10us;
-  uint16_t scan_id: 9;   /* id of the scan line */
-  uint16_t in_roi: 2;
-  uint16_t facet: 3;
-  uint16_t multi_return: 1;
-  uint16_t reserved_flags: 1; /* all 0 */
-  uint32_t is_2nd_return: 1;
-  uint32_t scan_idx: 14;   /* point idx within the scan line */
-  uint32_t refl: 9;        /* reflectance, 1-254, 255 means a reflector     */
+  uint16_t scan_id : 9; /* id of the scan line */
+  uint16_t in_roi : 2;
+  uint16_t facet : 3;
+  uint16_t multi_return : 1;
+  uint16_t reserved_flags : 1; /* all 0 */
+  uint32_t is_2nd_return : 1;
+  uint32_t scan_idx : 14;  /* point idx within the scan line */
+  uint32_t refl : 9;       /* reflectance, 1-254, 255 means a reflector     */
                            /* or intensity, also 1-254 & 255=reflector      */
-  uint32_t type: 2;        /* 0: normal, 1: ground, 2: fog                  */
-  uint32_t elongation: 4;  /* elongation */
-  uint32_t channel: 2;
+  uint32_t type : 2;       /* 0: normal, 1: ground, 2: fog                  */
+  uint32_t elongation : 4; /* elongation */
+  uint32_t channel : 2;
   uint16_t ring_id;
-} InnoXyzPoint;
+}
+InnoXyzPoint;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* compact format, 4 bytes per point */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoChannelPoint) {
   /* distance in distance unit, distance unit:1/200m, long_distance unit 1/100m */
   uint32_t radius : 17;
-  uint32_t refl: 8;        /* reflectance, 1-254, 255 means a reflector     */
-                           /* or intensity, also 1-254 & 255=reflector      */
-  uint32_t is_2nd_return: 1; /* 0: 1st return, 1: 2nd return                */
-  uint32_t type: 2;        /* 0: normal, 1: ground, 2: fog                  */
-  uint32_t elongation: 4;  /* elongation */
-} InnoChannelPoint;
+  uint32_t refl : 8;          /* reflectance, 1-254, 255 means a reflector     */
+                              /* or intensity, also 1-254 & 255=reflector      */
+  uint32_t is_2nd_return : 1; /* 0: 1st return, 1: 2nd return                */
+  uint32_t type : 2;          /* 0: normal, 1: ground, 2: fog                  */
+  uint32_t elongation : 4;    /* elongation */
+}
+InnoChannelPoint;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoBlock) {
   InnoBlockHeader header;
   InnoChannelPoint points[0];
-} InnoBlock;
+}
+InnoBlock;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* 17 + 4 * 4 = 33 bytes */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoBlock1) {
   InnoBlockHeader header;
   InnoChannelPoint points[INNO_CHANNEL_NUMBER];
-} InnoBlock1;
+}
+InnoBlock1;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* 17 + 8 * 4 = 49 bytes */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoBlock2) {
   InnoBlockHeader header;
   InnoChannelPoint points[INNO_CHANNEL_NUMBER * INNO_MAX_MULTI_RETURN];
-} InnoBlock2;
+}
+InnoBlock2;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* compact format, 8 bytes per point */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoEnChannelPoint) {
-  uint16_t reflectance;            /* reflectance, falcon 1-65535,robin 1-4095  */
-  uint16_t intensity;           /* intensity, falcon 1-65535,robin 1-4095  */
-  uint32_t elongation: 7;      /* elongation unit: 1ns */
-  uint32_t is_2nd_return: 1;    /* 0: 1st return, 1: 2nd return                  */
-  uint32_t radius : 19;         /* distance in distance unit, distance unit:1/400m, range [0, 655.35m] */
-  uint32_t type : 2;            /* 0: normal, 1: ground, 2: fog                  */
-  uint32_t firing: 1;           /* 0: weak, 1: strong */
-  uint32_t reserved_flags : 2;  /* all 0 */
-} InnoEnChannelPoint;
+  uint16_t reflectance;       /* reflectance, falcon 1-65535,robin 1-4095  */
+  uint16_t intensity;         /* intensity, falcon 1-65535,robin 1-4095  */
+  uint32_t elongation : 7;    /* elongation unit: 1ns */
+  uint32_t is_2nd_return : 1; /* 0: 1st return, 1: 2nd return                  */
+  uint32_t radius : 19; /* distance in distance unit, distance unit:1/400m, range [0, 655.35m] */
+  uint32_t type : 2;    /* 0: normal, 1: ground, 2: fog                  */
+  uint32_t firing : 1;  /* 0: weak, 1: strong */
+  uint32_t reserved_flags : 2; /* all 0 */
+}
+InnoEnChannelPoint;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* compact format, 40 bytes per point */
@@ -564,13 +569,14 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoEnXyzPoint) {
   double timestamp_s; /* epoch time of the point, in second */
   uint16_t reflectance;
   uint16_t intensity;
-  uint8_t facet;  /* 0-4 */
+  uint8_t facet; /* 0-4 */
   uint8_t channel;
   uint8_t firing;
   uint8_t in_roi;
   uint8_t is_2nd_return;
   uint8_t multi_return; /* multi return mode,true mean the 2nd point*/
-} InnoEnXyzPoint;
+}
+InnoEnXyzPoint;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* 18 bytes per EnBlock header */
@@ -591,8 +597,8 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoEnBlockHeader) {
   int64_t v_angle_diff_1 : 10;
   int64_t v_angle_diff_2 : 10;
   int64_t v_angle_diff_3 : 10;
-  uint16_t scan_idx;            /* point idx within the scan line */
-  uint16_t scan_id : 9;         /* id of the scan line */
+  uint16_t scan_idx;    /* point idx within the scan line */
+  uint16_t scan_id : 9; /* id of the scan line */
   /*   0: in sparse region
   0x01: in vertical slow region
   0x11: in center ROI
@@ -600,36 +606,41 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoEnBlockHeader) {
   uint16_t in_roi : 2;
   uint16_t facet : 3;
   uint16_t reserved_flags : 2; /* all 0 */
-} InnoEnBlockHeader;
+}
+InnoEnBlockHeader;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoEnBlock) {
   InnoEnBlockHeader header;
   InnoEnChannelPoint points[0];
-} InnoEnBlock;
+}
+InnoEnBlock;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* 18 + 4 * 8 = 50 bytes */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoEnBlock1) {
   InnoEnBlockHeader header;
   InnoEnChannelPoint points[INNO_CHANNEL_NUMBER];
-} InnoEnBlock1;
+}
+InnoEnBlock1;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* 18 + 8 * 8 = 82 bytes */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoEnBlock2) {
   InnoEnBlockHeader header;
   InnoEnChannelPoint points[INNO_CHANNEL_NUMBER * INNO_MAX_MULTI_RETURN];
-} InnoEnBlock2;
+}
+InnoEnBlock2;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* compact format, 4 bytes per point */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoCoChannelPoint) {
-  uint32_t refl : 12;    /* reflectance or intensity robin 1-4095  */
-  uint32_t radius : 18;         /* distance in distance unit, distance unit:1/400m, range [0, 655.35m] */
-  uint32_t is_2nd_return: 1;    /* RWG: 1: possible dusy point, 0: normal point*/
-  uint32_t firing: 1;           /* 0: weak, 1: strong */
-} InnoCoChannelPoint;
+  uint32_t refl : 12;   /* reflectance or intensity robin 1-4095  */
+  uint32_t radius : 18; /* distance in distance unit, distance unit:1/400m, range [0, 655.35m] */
+  uint32_t is_2nd_return : 1; /* RWG: 1: possible dusy point, 0: normal point*/
+  uint32_t firing : 1;        /* 0: weak, 1: strong */
+}
+InnoCoChannelPoint;
 
 DEFINE_INNO_COMPACT_STRUCT_END
 /* 10 bytes per CoBlock header */
@@ -640,8 +651,8 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoCoBlockHeader) {
   int16_t g_angle;
   /* relative timestamp (to ts_start_us) in 10us, 0-655,350us */
   uint16_t ts_10us;
-  uint16_t scan_idx;            /* point idx within the scan line */
-  uint16_t scan_id : 9;         /* id of the scan line */
+  uint16_t scan_idx;    /* point idx within the scan line */
+  uint16_t scan_id : 9; /* id of the scan line */
   /*   0: in sparse region
   0x01: in vertical slow region
   0x11: in center ROI
@@ -649,27 +660,31 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoCoBlockHeader) {
   uint16_t in_roi : 2;
   uint16_t facet : 3;
   uint16_t reserved_flags : 2; /* all 0 */
-} InnoCoBlockHeader;
+}
+InnoCoBlockHeader;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoCoBlock) {
   InnoCoBlockHeader header;
   InnoCoChannelPoint points[0];
-} InnoCoBlock;
+}
+InnoCoBlock;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* 10 + 4 * 8 = 42 bytes, 5.25 bytes/point */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoCoBlock1) {
   InnoCoBlockHeader header;
   InnoCoChannelPoint points[INNO_COMPACT_CHANNEL_NUMBER];
-} InnoCoBlock1;
+}
+InnoCoBlock1;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* 10 + 8 * 8 = 74 bytes */
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoCoBlock2) {
   InnoCoBlockHeader header;
   InnoCoChannelPoint points[INNO_COMPACT_CHANNEL_NUMBER * INNO_MAX_MULTI_RETURN];
-} InnoCoBlock2;
+}
+InnoCoBlock2;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 static inline size_t innoblock_get_idx(size_t channel, size_t r) {
@@ -692,12 +707,14 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoMessage) {
   uint32_t code;       /* message code          */
   int32_t reserved[4]; /* all 0                 */
   char content[0];     /* 0 end string          */
-} InnoMessage;
+}
+InnoMessage;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoRingIdTable) {
   uint8_t table[256];  // uint8_t 0-255
-} InnoRingIdTable;
+}
+InnoRingIdTable;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /*
@@ -714,7 +731,8 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoCommonVersion) {
 
   /* 2 byte */
   uint16_t fw_sequence;
-} InnoCommonVersion;
+}
+InnoCommonVersion;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoCommonHeader) {
@@ -730,27 +748,30 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoCommonHeader) {
   /* 2 bytes */
   uint8_t source_id : 4;           /* up to 16 different LiDAR source */
   uint8_t timestamp_sync_type : 4; /* enum InnoTimestampSyncType      */
-  uint8_t lidar_type;          /* enum InnoLidarType */
+  uint8_t lidar_type;              /* enum InnoLidarType */
   /* 8 bytes */
   InnoTimestampUs ts_start_us; /* epoch time of start of frame, in micro-sec */
 
   /* 2 bytes */
-  uint8_t lidar_mode;        /* enum InnoLidarMode    */
-  uint8_t lidar_status;      /* enum InnoLidarStatus  */
-} InnoCommonHeader;
+  uint8_t lidar_mode;   /* enum InnoLidarMode    */
+  uint8_t lidar_status; /* enum InnoLidarStatus  */
+}
+InnoCommonHeader;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(AngleHV) {
   int16_t v;
   int16_t h;
-} AngleHV;
+}
+AngleHV;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoAngleHVTableVersion) {
   /* 2 byte */
   uint8_t major_version;
   uint8_t minor_version;
-} InnoAngleHVTableVersion;
+}
+InnoAngleHVTableVersion;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoAngleHVTable) {
@@ -758,15 +779,18 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoAngleHVTable) {
   uint64_t id;
   AngleHV table[kPolygonMaxFacets][kPolygonTableSize][kInnoRobinWMaxSetNumber][kMaxReceiverInSet];
   uint8_t reserved[512];
-} InnoAngleHVTable;
+}
+InnoAngleHVTable;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoRobinELiteAngleHVTable) {
   InnoAngleHVTableVersion version_number;
   uint64_t id;
-  AngleHV table[kPolygonMaxFacets][kPolygonTableSize][kInnoRobinELiteMaxSetNumber][kMaxReceiverInSet];
+  AngleHV table[kPolygonMaxFacets][kPolygonTableSize][kInnoRobinELiteMaxSetNumber]
+               [kMaxReceiverInSet];
   uint8_t reserved[512];
-} InnoRobinELiteAngleHVTable;
+}
+InnoRobinELiteAngleHVTable;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /*
@@ -777,46 +801,46 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoDataPacket) {
   InnoCommonHeader common;
 
   /* 12 bytes */
-  uint64_t idx;         /* frame index, start from 0                     */
-  uint16_t sub_idx;     /* sub-frame index, start from 0 for every frame */
-  uint16_t sub_seq;     /* sequence of InnoDataPacket, start from 0     */
+  uint64_t idx;     /* frame index, start from 0                     */
+  uint16_t sub_idx; /* sub-frame index, start from 0 for every frame */
+  uint16_t sub_seq; /* sequence of InnoDataPacket, start from 0     */
 
   /* 10 byte */
   /* type in enum InnoItemType, each type uses independent global idx */
-  uint32_t type :8;
-  uint32_t item_number :24;        /* max 4 * 1024 * 1024               */
-  uint16_t item_size;              /* max 65535, 0 means variable size  */
-  uint32_t topic;                  /* reserved                          */
+  uint32_t type : 8;
+  uint32_t item_number : 24; /* max 4 * 1024 * 1024               */
+  uint16_t item_size;        /* max 65535, 0 means variable size  */
+  uint32_t topic;            /* reserved                          */
 
   /* 2 bytes */
-  uint16_t scanner_direction :1; /* 0: top->bottom, 1: bottom->top          */
-  uint16_t use_reflectance   :1; /* 0: intensity mode, 1: reflectance mode  */
-  uint16_t multi_return_mode :3; /* ... */
-  uint16_t confidence_level  :2; /* 0: no confidence, 3: higest             */
-  uint16_t is_last_sub_frame :1; /* 1: the last sub frame of a frame        */
-  uint16_t is_last_sequence  :1; /* 1: the last piece of a sub frame        */
-  uint16_t has_tail :1;          /* has additional tail struct after points */
-  uint16_t frame_sync_locked :1; /* 1: frame sync has locked                */
-  uint16_t is_first_sub_frame :1; /* 1: the first sub frame of a frame      */
-  uint16_t last_four_channel :1;
+  uint16_t scanner_direction : 1;  /* 0: top->bottom, 1: bottom->top          */
+  uint16_t use_reflectance : 1;    /* 0: intensity mode, 1: reflectance mode  */
+  uint16_t multi_return_mode : 3;  /* ... */
+  uint16_t confidence_level : 2;   /* 0: no confidence, 3: higest             */
+  uint16_t is_last_sub_frame : 1;  /* 1: the last sub frame of a frame        */
+  uint16_t is_last_sequence : 1;   /* 1: the last piece of a sub frame        */
+  uint16_t has_tail : 1;           /* has additional tail struct after points */
+  uint16_t frame_sync_locked : 1;  /* 1: frame sync has locked                */
+  uint16_t is_first_sub_frame : 1; /* 1: the first sub frame of a frame      */
+  uint16_t last_four_channel : 1;
   uint16_t long_distance_mode : 1; /* lidar work in long distance mode,only for falconk */
-  uint16_t reserved_flag : 2; /* all 0 */
+  uint16_t reserved_flag : 2;      /* all 0 */
 
   /* 4 bytes */
-  int16_t roi_h_angle;           /* configured ROI in InnoAngleUnit */
+  int16_t roi_h_angle; /* configured ROI in InnoAngleUnit */
   int16_t roi_v_angle;
   /* The output from the FalconK LiDAR does not include the extend_reserved field, which is
                                   inserted by the client SDK */
   uint32_t extend_reserved[4];
 // MSVC compiler does not support multi-dimensional flexible arrays.
-# if !defined(_MSC_VER)
+#if !defined(_MSC_VER)
   union {
     char payload[0];
     InnoBlock1 inno_block1s[0];
     InnoBlock2 inno_block2s[0];
     InnoMessage messages[0];
     InnoXyzPoint xyz_points[0];
-        // Robin & Falcon2.1
+    // Robin & Falcon2.1
     InnoEnBlock1 inno_en_block1s[0];
     InnoEnBlock2 inno_en_block2s[0];
     InnoCoBlock1 inno_co_block1s[0];
@@ -829,7 +853,8 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoDataPacket) {
 #else
   char payload[0];
 #endif
-} InnoDataPacket;
+}
+InnoDataPacket;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusInFaults) {
@@ -842,11 +867,11 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusInFaults) {
    *  RobinELite fault defined in enum InnoLidarRobinELInFault
    *  0 means no fault.
    */
-  uint64_t faults; /* fid id 0-63 */
+  uint64_t faults;          /* fid id 0-63 */
   uint32_t extended_faults; /* fid id 64-95 */
-} InnoStatusInFaults;
+}
+InnoStatusInFaults;
 DEFINE_INNO_COMPACT_STRUCT_END
-
 
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusExFaults) {
   /*
@@ -854,9 +879,9 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusExFaults) {
    *  0 means no fault.
    */
   uint32_t faults;
-} InnoStatusExFaults;
+}
+InnoStatusExFaults;
 DEFINE_INNO_COMPACT_STRUCT_END
-
 
 /*
  * 320 bytes InnoStatusCounters
@@ -884,8 +909,8 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusCounters) {
   uint32_t small_gap_frame;
   uint16_t cpu_percentage;
   uint16_t mem_percentage;
-  uint16_t motor[5];  /* std,min,max1,max2 */
-  uint16_t galvo[5];  /* std,min,max1,max2 */
+  uint16_t motor[5]; /* std,min,max1,max2 */
+  uint16_t galvo[5]; /* std,min,max1,max2 */
   uint16_t netstat_rx_speed_kBps;
   uint16_t netstat_tx_speed_kBps;
   uint16_t netstat_rx_drop;
@@ -895,7 +920,8 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusCounters) {
   uint16_t sys_cpu_percentage[4];
   uint32_t lifelong_uptime;
   uint32_t reserved[18];
-} InnoStatusCounters;
+}
+InnoStatusCounters;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /* 192 bytes InnoStatusSensorReadings */
@@ -908,17 +934,17 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusSensorReadings) {
   int16_t temperature_other_10th_c[3];
   uint16_t heater_current_ma;
 
-  uint32_t motor_rpm_1000th;          /* polygon rpm * 1000   */
-  uint32_t galvo_fpm_1000th;          /* frame per min * 1000 */
+  uint32_t motor_rpm_1000th; /* polygon rpm * 1000   */
+  uint32_t galvo_fpm_1000th; /* frame per min * 1000 */
   uint64_t motor_rotation_total;
   uint64_t galvo_round_total;
   uint16_t moisture_index[2];         /* moisture index        */
   uint16_t window_blockage_index[2];  /* window blockage index */
-  uint16_t motor[6];  /* ma */
-  uint16_t galvo[6];  /* ma */
-  uint16_t laser[6];  /* ma */
-  uint16_t galvo_status_client;        /* set in client sdk */
-  uint16_t galvo_offset_angle_client;  /* set in client sdk */
+  uint16_t motor[6];                  /* ma */
+  uint16_t galvo[6];                  /* ma */
+  uint16_t laser[6];                  /* ma */
+  uint16_t galvo_status_client;       /* set in client sdk */
+  uint16_t galvo_offset_angle_client; /* set in client sdk */
 
   /* motor voltage, unit is 1mV(millivolt) */
   uint32_t motor_dc_bus_voltage;
@@ -942,7 +968,8 @@ typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusSensorReadings) {
   int32_t gyro_unit_z;
   uint16_t gyro_temp;
   uint16_t reserved[20];
-} InnoStatusSensorReadings;
+}
+InnoStatusSensorReadings;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /*
@@ -951,29 +978,30 @@ DEFINE_INNO_COMPACT_STRUCT_END
 typedef DEFINE_INNO_COMPACT_STRUCT(InnoStatusPacket) {
   InnoCommonHeader common;
 
-  uint64_t idx;  /* global index of all InnoStatusPacket */
+  uint64_t idx; /* global index of all InnoStatusPacket */
 
-  uint8_t status_packet_interval_ms;  /* status packet send interval in ms    */
-  uint8_t pre_lidar_mode;             /* previous InnoLidarMode               */
-  uint16_t in_transition_mode_ms;  /* time (ms), LiDAR in the transition mode */
+  uint8_t status_packet_interval_ms; /* status packet send interval in ms    */
+  uint8_t pre_lidar_mode;            /* previous InnoLidarMode               */
+  uint16_t in_transition_mode_ms;    /* time (ms), LiDAR in the transition mode */
 
-  char sn[INNO_SN_SZIE];                /* lidar serial number */
+  char sn[INNO_SN_SZIE]; /* lidar serial number */
   uint16_t fault_version;
-  uint16_t ref_count_enough_ts_ms;  // The time required for the number of reference to reach a certain proportion (50%)
-                                    // of the trigger count
+  uint16_t ref_count_enough_ts_ms;  // The time required for the number of reference to reach a
+                                    // certain proportion (50%) of the trigger count
   uint16_t ref_intensity[INNO_CHANNEL_NUMBER]; /* average reference intensity */
   uint8_t hw_num[INNO_HW_NUMBER_SIZE];
   uint8_t reserved;
 
-  InnoStatusInFaults in_faults;           /* fault id 0~95 */
-  InnoStatusExFaults ex_faults;           /* fault id 96~127 */
+  InnoStatusInFaults in_faults; /* fault id 0~95 */
+  InnoStatusExFaults ex_faults; /* fault id 96~127 */
   InnoStatusCounters counters;
   InnoStatusSensorReadings sensor_readings;
-  // The output from the FalconK LiDAR does not include the in_faults2 and extend_reserved field, which is
-  // inserted by the client SDK
+  // The output from the FalconK LiDAR does not include the in_faults2 and extend_reserved field,
+  // which is inserted by the client SDK
   InnoStatusInFaults in_faults2;
-  uint64_t extend_reserved[8];          /* 64 byte */
-} InnoStatusPacket;
+  uint64_t extend_reserved[8]; /* 64 byte */
+}
+InnoStatusPacket;
 DEFINE_INNO_COMPACT_STRUCT_END
 
 /**
@@ -987,12 +1015,11 @@ DEFINE_INNO_COMPACT_STRUCT_END
  * @return Void.
  */
 typedef void (*InnoMessageCallback)(int lidar_handle,
-                                    void *context,
+                                    void* context,
                                     uint32_t from_remote,
                                     enum InnoMessageLevel level,
                                     enum InnoMessageCode code,
-                                    const char *error_message);
-
+                                    const char* error_message);
 
 /**
  * @brief InnoDataPacketCallback
@@ -1001,9 +1028,7 @@ typedef void (*InnoMessageCallback)(int lidar_handle,
  * @param data Pointer to InnoDataPacket
  * @return 0
  */
-typedef int (*InnoDataPacketCallback)(int lidar_handle,
-                                      void *context,
-                                      const InnoDataPacket *data);
+typedef int (*InnoDataPacketCallback)(int lidar_handle, void* context, const InnoDataPacket* data);
 
 /**
  * @brief InnoStatusPacketCallback
@@ -1013,8 +1038,8 @@ typedef int (*InnoDataPacketCallback)(int lidar_handle,
  * @return 0
  */
 typedef int (*InnoStatusPacketCallback)(int lidar_handle,
-                                        void *context,
-                                        const InnoStatusPacket *status);
+                                        void* context,
+                                        const InnoStatusPacket* status);
 
 /**
  * @brief InnoHosttimeCallback
@@ -1023,7 +1048,7 @@ typedef int (*InnoStatusPacketCallback)(int lidar_handle,
  *         https://en.wikipedia.org/wiki/Unix_time
  *         e.g. ros::Time::now().toSec();
  */
-typedef double (*InnoHosttimeCallback)(void *context);
+typedef double (*InnoHosttimeCallback)(void* context);
 
 /**
  * @brief InnoRecorderCallback
@@ -1033,7 +1058,10 @@ typedef double (*InnoHosttimeCallback)(void *context);
  * @param len Length of the buffer
  * @return 0: Normally callback this function in the next time, none 0 : stop recorder
  */
-typedef int (*InnoRecorderCallback)(int lidar_handle, void *context, enum InnoRecorderCallbackType type,
-                                    const char *buffer, int len);
+typedef int (*InnoRecorderCallback)(int lidar_handle,
+                                    void* context,
+                                    enum InnoRecorderCallbackType type,
+                                    const char* buffer,
+                                    int len);
 
 #endif  // SDK_COMMON_INNO_LIDAR_PACKET_H_

@@ -11,160 +11,173 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <chrono>
 #include <list>
 #include <string>
-#include <chrono>
 #if !defined(__MINGW64__) && defined(_WIN32)
 #include "utils/getopt_windows.h"
 #else
 #include <getopt.h>
 #endif
 
-#include "sdk_common/inno_lidar_packet.h"
 #include "sdk_common/inno_lidar_other_packet.h"
+#include "sdk_common/inno_lidar_packet.h"
 #include "sdk_common/ring_id_converter_interface.h"
 #include "utils/inno_lidar_log.h"
 
 #define CHECK_XYZ_POINTCLOUD_DATA(X)                                                  \
-(X == INNO_ITEM_TYPE_XYZ_POINTCLOUD || X == INNO_ROBINE_ITEM_TYPE_XYZ_POINTCLOUD || \
-X == INNO_ROBINW_ITEM_TYPE_XYZ_POINTCLOUD || X == INNO_FALCONII_DOT_1_ITEM_TYPE_XYZ_POINTCLOUD || \
-X == INNO_ROBINELITE_ITEM_TYPE_XYZ_POINTCLOUD)
+  (X == INNO_ITEM_TYPE_XYZ_POINTCLOUD || X == INNO_ROBINE_ITEM_TYPE_XYZ_POINTCLOUD || \
+   X == INNO_ROBINW_ITEM_TYPE_XYZ_POINTCLOUD ||                                       \
+   X == INNO_FALCONII_DOT_1_ITEM_TYPE_XYZ_POINTCLOUD ||                               \
+   X == INNO_ROBINELITE_ITEM_TYPE_XYZ_POINTCLOUD)
 
 #define CHECK_SPHERE_POINTCLOUD_DATA(X)                                                     \
-(X == INNO_ITEM_TYPE_SPHERE_POINTCLOUD || X == INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD || \
-X == INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD || X == INNO_FALCONII_DOT_1_ITEM_TYPE_SPHERE_POINTCLOUD || \
-X == INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD || X == INNO_ROBINELITE_ITEM_TYPE_COMPACT_POINTCLOUD)
+  (X == INNO_ITEM_TYPE_SPHERE_POINTCLOUD || X == INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD || \
+   X == INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD ||                                          \
+   X == INNO_FALCONII_DOT_1_ITEM_TYPE_SPHERE_POINTCLOUD ||                                  \
+   X == INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD ||                                         \
+   X == INNO_ROBINELITE_ITEM_TYPE_COMPACT_POINTCLOUD)
 
 #define CHECK_EN_XYZ_POINTCLOUD_DATA(X)                                                      \
-(X == INNO_ROBINE_ITEM_TYPE_XYZ_POINTCLOUD || X == INNO_ROBINW_ITEM_TYPE_XYZ_POINTCLOUD || \
-X == INNO_FALCONII_DOT_1_ITEM_TYPE_XYZ_POINTCLOUD || X == INNO_ROBINELITE_ITEM_TYPE_XYZ_POINTCLOUD)
+  (X == INNO_ROBINE_ITEM_TYPE_XYZ_POINTCLOUD || X == INNO_ROBINW_ITEM_TYPE_XYZ_POINTCLOUD || \
+   X == INNO_FALCONII_DOT_1_ITEM_TYPE_XYZ_POINTCLOUD ||                                      \
+   X == INNO_ROBINELITE_ITEM_TYPE_XYZ_POINTCLOUD)
 
-#define CHECK_EN_SPHERE_POINTCLOUD_DATA(X) \
-(X == INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD || X == INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD || \
-X == INNO_FALCONII_DOT_1_ITEM_TYPE_SPHERE_POINTCLOUD)
+#define CHECK_EN_SPHERE_POINTCLOUD_DATA(X)                                                         \
+  (X == INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD || X == INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD || \
+   X == INNO_FALCONII_DOT_1_ITEM_TYPE_SPHERE_POINTCLOUD)
 
-#define CHECK_CO_SPHERE_POINTCLOUD_DATA(X) \
-(X == INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD || X == INNO_ROBINELITE_ITEM_TYPE_COMPACT_POINTCLOUD)
+#define CHECK_CO_SPHERE_POINTCLOUD_DATA(X)          \
+  (X == INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD || \
+   X == INNO_ROBINELITE_ITEM_TYPE_COMPACT_POINTCLOUD)
 
 // FUNC is in type InnoDataPacketPointsIterCallback
-#define ITERARATE_INNO_DATA_PACKET_CPOINTS(FUNC, ctx, packet, count)                                            \
-  do {                                                                                                          \
-    uint32_t unit_size;                                                                                         \
-    uint32_t mr;                                                                                                \
-    mr = InnoDataPacketUtils::get_return_times(InnoMultipleReturnMode((packet)->multi_return_mode));            \
-    if (mr == 2) {                                                                                              \
-      unit_size = sizeof(InnoBlock2);                                                                           \
-    } else if (mr == 1) {                                                                                       \
-      unit_size = sizeof(InnoBlock1);                                                                           \
-    } else {                                                                                                    \
-      inno_log_panic("return times of return mode %d is %d?", (packet)->multi_return_mode, mr);                 \
-    }                                                                                                           \
-    const InnoBlock *block = reinterpret_cast<const InnoBlock *>((packet)->payload);                            \
-    for (size_t i = 0; i < (packet)->item_number;                                                               \
-         i++, block = reinterpret_cast<const InnoBlock *>(reinterpret_cast<const char *>(block) + unit_size)) { \
-      InnoBlockFullAngles full_angles;                                                                          \
-      InnoDataPacketUtils::get_block_full_angles(&full_angles, block->header);                                  \
-      for (uint32_t ch = 0; ch < kInnoChannelNumber; ch++) {                                                    \
-        for (uint32_t m = 0; m < mr; m++) {                                                                     \
-          const InnoChannelPoint &pt = block->points[innoblock_get_idx(ch, m)];                                 \
-          FUNC(ctx, (*packet), (*block), pt, full_angles, ch, m);                                               \
-          count++;                                                                                              \
-        }                                                                                                       \
-      }                                                                                                         \
-    }                                                                                                           \
+#define ITERARATE_INNO_DATA_PACKET_CPOINTS(FUNC, ctx, packet, count)                              \
+  do {                                                                                            \
+    uint32_t unit_size;                                                                           \
+    uint32_t mr;                                                                                  \
+    mr = InnoDataPacketUtils::get_return_times(                                                   \
+        InnoMultipleReturnMode((packet)->multi_return_mode));                                     \
+    if (mr == 2) {                                                                                \
+      unit_size = sizeof(InnoBlock2);                                                             \
+    } else if (mr == 1) {                                                                         \
+      unit_size = sizeof(InnoBlock1);                                                             \
+    } else {                                                                                      \
+      inno_log_panic("return times of return mode %d is %d?", (packet)->multi_return_mode, mr);   \
+    }                                                                                             \
+    const InnoBlock* block = reinterpret_cast<const InnoBlock*>((packet)->payload);               \
+    for (size_t i = 0; i < (packet)->item_number; i++,                                            \
+                block = reinterpret_cast<const InnoBlock*>(reinterpret_cast<const char*>(block) + \
+                                                           unit_size)) {                          \
+      InnoBlockFullAngles full_angles;                                                            \
+      InnoDataPacketUtils::get_block_full_angles(&full_angles, block->header);                    \
+      for (uint32_t ch = 0; ch < kInnoChannelNumber; ch++) {                                      \
+        for (uint32_t m = 0; m < mr; m++) {                                                       \
+          const InnoChannelPoint& pt = block->points[innoblock_get_idx(ch, m)];                   \
+          FUNC(ctx, (*packet), (*block), pt, full_angles, ch, m);                                 \
+          count++;                                                                                \
+        }                                                                                         \
+      }                                                                                           \
+    }                                                                                             \
   } while (0)
 
-#define ITERARATE_INNO_DATA_PACKET_EN_CPOINTS(FUNC, ctx, packet, count)                                           \
-  do {                                                                                                            \
-    uint32_t unit_size;                                                                                           \
-    uint32_t mr;                                                                                                  \
-    mr = InnoDataPacketUtils::get_return_times(InnoMultipleReturnMode((packet)->multi_return_mode));              \
-    if (mr == 2) {                                                                                                \
-      unit_size = sizeof(InnoEnBlock2);                                                                           \
-    } else if (mr == 1) {                                                                                         \
-      unit_size = sizeof(InnoEnBlock1);                                                                           \
-    } else {                                                                                                      \
-      inno_log_panic("return times of return mode %d is %d?", (packet)->multi_return_mode, mr);                   \
-    }                                                                                                             \
-    const InnoEnBlock *block = reinterpret_cast<const InnoEnBlock *>((packet)->payload);                          \
-    for (size_t i = 0; i < (packet)->item_number;                                                                 \
-         i++, block = reinterpret_cast<const InnoEnBlock *>(reinterpret_cast<const char *>(block) + unit_size)) { \
-      InnoBlockFullAngles full_angles;                                                                            \
-      InnoDataPacketUtils::get_block_full_angles(&full_angles, block->header,                                     \
-                                                 static_cast<InnoItemType>((packet)->type));                      \
-      for (uint32_t ch = 0; ch < kInnoChannelNumber; ch++) {                                                      \
-        for (uint32_t m = 0; m < mr; m++) {                                                                       \
-          const InnoEnChannelPoint &pt = block->points[innoblock_get_idx(ch, m)];                                 \
-          FUNC(ctx, (*packet), (*block), pt, full_angles, ch, m);                                                 \
-          count++;                                                                                                \
-        }                                                                                                         \
-      }                                                                                                           \
-    }                                                                                                             \
+#define ITERARATE_INNO_DATA_PACKET_EN_CPOINTS(FUNC, ctx, packet, count)                         \
+  do {                                                                                          \
+    uint32_t unit_size;                                                                         \
+    uint32_t mr;                                                                                \
+    mr = InnoDataPacketUtils::get_return_times(                                                 \
+        InnoMultipleReturnMode((packet)->multi_return_mode));                                   \
+    if (mr == 2) {                                                                              \
+      unit_size = sizeof(InnoEnBlock2);                                                         \
+    } else if (mr == 1) {                                                                       \
+      unit_size = sizeof(InnoEnBlock1);                                                         \
+    } else {                                                                                    \
+      inno_log_panic("return times of return mode %d is %d?", (packet)->multi_return_mode, mr); \
+    }                                                                                           \
+    const InnoEnBlock* block = reinterpret_cast<const InnoEnBlock*>((packet)->payload);         \
+    for (size_t i = 0; i < (packet)->item_number; i++,                                          \
+                block = reinterpret_cast<const InnoEnBlock*>(                                   \
+                    reinterpret_cast<const char*>(block) + unit_size)) {                        \
+      InnoBlockFullAngles full_angles;                                                          \
+      InnoDataPacketUtils::get_block_full_angles(                                               \
+          &full_angles, block->header, static_cast<InnoItemType>((packet)->type));              \
+      for (uint32_t ch = 0; ch < kInnoChannelNumber; ch++) {                                    \
+        for (uint32_t m = 0; m < mr; m++) {                                                     \
+          const InnoEnChannelPoint& pt = block->points[innoblock_get_idx(ch, m)];               \
+          FUNC(ctx, (*packet), (*block), pt, full_angles, ch, m);                               \
+          count++;                                                                              \
+        }                                                                                       \
+      }                                                                                         \
+    }                                                                                           \
   } while (0)
 
-#define ITERARATE_INNO_DATA_PACKET_CO_CPOINTS(FUNC, ctx, packet, count, table)                                    \
-  do {                                                                                                            \
-    uint32_t unit_size;                                                                                           \
-    uint32_t mr;                                                                                                  \
-    mr = InnoDataPacketUtils::get_return_times(InnoMultipleReturnMode((packet)->multi_return_mode));              \
-    if (mr == 2) {                                                                                                \
-      unit_size = sizeof(InnoCoBlock2);                                                                           \
-    } else if (mr == 1) {                                                                                         \
-      unit_size = sizeof(InnoCoBlock1);                                                                           \
-    } else {                                                                                                      \
-      inno_log_panic("return times of return mode %d is %d?", (packet)->multi_return_mode, mr);                   \
-    }                                                                                                             \
-    const InnoCoBlock *block = reinterpret_cast<const InnoCoBlock *>((packet)->payload);                          \
-    for (size_t i = 0; i < (packet)->item_number;                                                                 \
-         i++, block = reinterpret_cast<const InnoCoBlock *>(reinterpret_cast<const char *>(block) + unit_size)) { \
-      InnoCoBlockFullAngles full_angles;                                                                          \
-      if (table) {                                                                                                \
-        InnoDataPacketUtils::get_block_full_angles(&full_angles, block->header,                                   \
-                                                   static_cast<InnoItemType>((packet)->type), table);             \
-      }                                                                                                           \
-      for (uint32_t ch = 0; ch < kInnoCompactChannelNumber; ch++) {                                               \
-        for (uint32_t m = 0; m < mr; m++) {                                                                       \
-          if (table && !InnoDataPacketUtils::is_robinw_inside_fov_point(full_angles.angles[ch])) {                \
-            continue;                                                                                             \
-          }                                                                                                       \
-          const InnoCoChannelPoint &pt = block->points[innocoblock_get_idx(ch, m)];                               \
-          FUNC(ctx, (*packet), (*block), pt, full_angles, ch, m);                                                 \
-          count++;                                                                                                \
-        }                                                                                                         \
-      }                                                                                                           \
-    }                                                                                                             \
+#define ITERARATE_INNO_DATA_PACKET_CO_CPOINTS(FUNC, ctx, packet, count, table)                     \
+  do {                                                                                             \
+    uint32_t unit_size;                                                                            \
+    uint32_t mr;                                                                                   \
+    mr = InnoDataPacketUtils::get_return_times(                                                    \
+        InnoMultipleReturnMode((packet)->multi_return_mode));                                      \
+    if (mr == 2) {                                                                                 \
+      unit_size = sizeof(InnoCoBlock2);                                                            \
+    } else if (mr == 1) {                                                                          \
+      unit_size = sizeof(InnoCoBlock1);                                                            \
+    } else {                                                                                       \
+      inno_log_panic("return times of return mode %d is %d?", (packet)->multi_return_mode, mr);    \
+    }                                                                                              \
+    const InnoCoBlock* block = reinterpret_cast<const InnoCoBlock*>((packet)->payload);            \
+    for (size_t i = 0; i < (packet)->item_number; i++,                                             \
+                block = reinterpret_cast<const InnoCoBlock*>(                                      \
+                    reinterpret_cast<const char*>(block) + unit_size)) {                           \
+      InnoCoBlockFullAngles full_angles;                                                           \
+      if (table) {                                                                                 \
+        InnoDataPacketUtils::get_block_full_angles(                                                \
+            &full_angles, block->header, static_cast<InnoItemType>((packet)->type), table);        \
+      }                                                                                            \
+      for (uint32_t ch = 0; ch < kInnoCompactChannelNumber; ch++) {                                \
+        for (uint32_t m = 0; m < mr; m++) {                                                        \
+          if (table && !InnoDataPacketUtils::is_robinw_inside_fov_point(full_angles.angles[ch])) { \
+            continue;                                                                              \
+          }                                                                                        \
+          const InnoCoChannelPoint& pt = block->points[innocoblock_get_idx(ch, m)];                \
+          FUNC(ctx, (*packet), (*block), pt, full_angles, ch, m);                                  \
+          count++;                                                                                 \
+        }                                                                                          \
+      }                                                                                            \
+    }                                                                                              \
   } while (0)
 // FUNC is in type InnoDataPacketXYZPointsIterCallback
-#define ITERARATE_INNO_DATA_PACKET_XYZ_POINTS(FUNC, ctx, packet)                                    \
-  do {                                                                                              \
-    const InnoXyzPoint *inno_xyz_point = reinterpret_cast<const InnoXyzPoint *>((packet)->payload); \
-    for (size_t i = 0; i < (packet)->item_number; i++, inno_xyz_point++) {                          \
-      FUNC(ctx, (*packet), *inno_xyz_point);                                                        \
-    }                                                                                               \
+#define ITERARATE_INNO_DATA_PACKET_XYZ_POINTS(FUNC, ctx, packet)                                   \
+  do {                                                                                             \
+    const InnoXyzPoint* inno_xyz_point = reinterpret_cast<const InnoXyzPoint*>((packet)->payload); \
+    for (size_t i = 0; i < (packet)->item_number; i++, inno_xyz_point++) {                         \
+      FUNC(ctx, (*packet), *inno_xyz_point);                                                       \
+    }                                                                                              \
   } while (0)
 
-#define ITERARATE_INNO_DATA_PACKET_EN_XYZ_POINTS(FUNC, ctx, packet)                                        \
-  do {                                                                                                     \
-    const InnoEnXyzPoint *inno_en_xyz_point = reinterpret_cast<const InnoEnXyzPoint *>((packet)->payload); \
-    for (size_t i = 0; i < (packet)->item_number; i++, inno_en_xyz_point++) {                              \
-      FUNC(ctx, (*packet), *inno_en_xyz_point);                                                            \
-    }                                                                                                      \
+#define ITERARATE_INNO_DATA_PACKET_EN_XYZ_POINTS(FUNC, ctx, packet)           \
+  do {                                                                        \
+    const InnoEnXyzPoint* inno_en_xyz_point =                                 \
+        reinterpret_cast<const InnoEnXyzPoint*>((packet)->payload);           \
+    for (size_t i = 0; i < (packet)->item_number; i++, inno_en_xyz_point++) { \
+      FUNC(ctx, (*packet), *inno_en_xyz_point);                               \
+    }                                                                         \
   } while (0)
 
 // only used for robin
-#define DEFINE_INNO_ITEM_TYPE_SPECIFIC_DATA(type)                              \
-  const uint8_t *channel_mapping;                                              \
-  int tdc_channel_number;                                                      \
-  if (type == INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD) {                       \
-    channel_mapping = &InnoDataPacketUtils::robine_channel_mapping[0];         \
-    tdc_channel_number = InnoDataPacketUtils::RobinETDCChannelNumber;          \
-  } else if (type == INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD ||                \
-             type == INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD) {               \
-    channel_mapping = &InnoDataPacketUtils::robinw_channel_mapping[0];         \
-    tdc_channel_number = InnoDataPacketUtils::RobinWTDCChannelNumber;          \
-  } else {                                                                     \
-    channel_mapping = &InnoDataPacketUtils::robinelite_channel_mapping[0];     \
-    tdc_channel_number = 0;                                                    \
+#define DEFINE_INNO_ITEM_TYPE_SPECIFIC_DATA(type)                          \
+  const uint8_t* channel_mapping;                                          \
+  int tdc_channel_number;                                                  \
+  if (type == INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD) {                   \
+    channel_mapping = &InnoDataPacketUtils::robine_channel_mapping[0];     \
+    tdc_channel_number = InnoDataPacketUtils::RobinETDCChannelNumber;      \
+  } else if (type == INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD ||            \
+             type == INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD) {           \
+    channel_mapping = &InnoDataPacketUtils::robinw_channel_mapping[0];     \
+    tdc_channel_number = InnoDataPacketUtils::RobinWTDCChannelNumber;      \
+  } else {                                                                 \
+    channel_mapping = &InnoDataPacketUtils::robinelite_channel_mapping[0]; \
+    tdc_channel_number = 0;                                                \
   }
 
 extern "C" {
@@ -193,14 +206,20 @@ class InnoDataPacketUtils {
   /**
    * @brief InnoDataPacketPointsIterCallback
    */
-  typedef void (*InnoDataPacketPointsIterCallback)(void *ctx, const InnoDataPacket &pkt, const InnoBlock &block,
-                                                   const InnoChannelPoint &pt, const InnoBlockFullAngles &angle,
-                                                   const uint16_t ch, const uint16_t m);
+  typedef void (*InnoDataPacketPointsIterCallback)(void* ctx,
+                                                   const InnoDataPacket& pkt,
+                                                   const InnoBlock& block,
+                                                   const InnoChannelPoint& pt,
+                                                   const InnoBlockFullAngles& angle,
+                                                   const uint16_t ch,
+                                                   const uint16_t m);
 
   /**
    * @brief InnoDataPacketXyzPointsIterCallback
    */
-  typedef void (*InnoDataPacketXyzPointsIterCallback)(void *ctx, const InnoDataPacket &pkt, const InnoXyzPoint &pt);
+  typedef void (*InnoDataPacketXyzPointsIterCallback)(void* ctx,
+                                                      const InnoDataPacket& pkt,
+                                                      const InnoXyzPoint& pt);
 
  private:
   static int init_;
@@ -224,13 +243,14 @@ class InnoDataPacketUtils {
   static const uint32_t kRobinWScanlines_ = 192;
   static const uint32_t kRobinEScanlines_ = 128;
   static const uint32_t kRobinWDistSize_ = 8;
-  static const uint32_t kRobinDist_[kRobinWDistSize_-1];
+  static const uint32_t kRobinDist_[kRobinWDistSize_ - 1];
   static const uint32_t kRobinEliteScanlines_ = 96;
   static constexpr double kUsInSecond = 1000000.0;
   static constexpr double k10UsInSecond = 100000.0;
   static int8_t vehicle_coordinate_;
   static int8_t robinw_nps_adjustment_[kRobinWScanlines_][kHTableSize_][kXYZSize_];
-  static int8_t robinw_nps_adjustment_pin_[kRobinWDistSize_][kRobinWScanlines_][kHTableSize_][kXYZSize_];
+  static int8_t robinw_nps_adjustment_pin_[kRobinWDistSize_][kRobinWScanlines_][kHTableSize_]
+                                          [kXYZSize_];
   static int8_t robinelite_nps_adjustment_[kRobinEliteScanlines_][kHTableSize_][kXYZSize_];
 
  private:
@@ -241,7 +261,10 @@ class InnoDataPacketUtils {
    * @param x      X
    * @param z      Z
    */
-  static void lookup_xz_adjustment_(const InnoBlockAngles &angles, uint32_t ch, double *x, double *z);
+  static void lookup_xz_adjustment_(const InnoBlockAngles& angles,
+                                    uint32_t ch,
+                                    double* x,
+                                    double* z);
 
   /**
    * @brief Ajust x y z for Robin
@@ -251,8 +274,12 @@ class InnoDataPacketUtils {
    * @param Y      Y
    * @param z      Z
    */
-  static void lookup_xyz_adjustment_(const InnoBlockAngles &angles, uint32_t scan_id, uint32_t radius_unit,
-                                     uint32_t firing, double adj[], InnoItemType type);
+  static void lookup_xyz_adjustment_(const InnoBlockAngles& angles,
+                                     uint32_t scan_id,
+                                     uint32_t radius_unit,
+                                     uint32_t firing,
+                                     double adj[],
+                                     InnoItemType type);
 
  public:
   static const uint32_t RobinWTDCChannelNumber = 48;
@@ -274,16 +301,15 @@ class InnoDataPacketUtils {
   static void init_robinw_nps_adjustment_pin_();
 
   static void init_robinelite_nps_adjustment_();
-  static void set_vehicle_coordinate(int8_t value) {
-    vehicle_coordinate_ = value;
-  }
+  static void set_vehicle_coordinate(int8_t value) { vehicle_coordinate_ = value; }
 
   /**
    * @brief Populate the points angles from the block header
    * @param full The angles to be populated
    * @param b    The block header
    */
-  static inline void get_block_full_angles(InnoBlockFullAngles *full, const InnoBlockHeader &b,
+  static inline void get_block_full_angles(InnoBlockFullAngles* full,
+                                           const InnoBlockHeader& b,
                                            InnoItemType type = INNO_ITEM_TYPE_SPHERE_POINTCLOUD) {
     full->angles[0].h_angle = b.h_angle;
     full->angles[0].v_angle = b.v_angle;
@@ -300,7 +326,8 @@ class InnoDataPacketUtils {
    * @param full The angles to be populated
    * @param b    The block header
    */
-  static inline void get_block_full_angles(InnoBlockFullAngles *full, const InnoEnBlockHeader &b,
+  static inline void get_block_full_angles(InnoBlockFullAngles* full,
+                                           const InnoEnBlockHeader& b,
                                            InnoItemType type) {
     full->angles[0].h_angle = b.h_angle;
     full->angles[0].v_angle = b.v_angle;
@@ -320,8 +347,10 @@ class InnoDataPacketUtils {
    * @param type The InnoItemType specifying the type of item.
    * @param anglehv_table The anglehv table used for angle calculations.
    */
-  static inline void get_block_full_angles(InnoCoBlockFullAngles *full, const InnoCoBlockHeader &b, InnoItemType type,
-                                           const char *anglehv_table) {
+  static inline void get_block_full_angles(InnoCoBlockFullAngles* full,
+                                           const InnoCoBlockHeader& b,
+                                           InnoItemType type,
+                                           const char* anglehv_table) {
     // p_angle is the polygon angle, range from 0 ~ 90 degree,unit is kInnoInvalidAngleInUnit
     int polygon_mod = b.p_angle;
     int facet_num = b.facet;
@@ -342,15 +371,16 @@ class InnoDataPacketUtils {
     int max_set_number = kInnoRobinWMaxSetNumber;
     AngleHV *b1, *b2;
     if (type == INNO_ROBINELITE_ITEM_TYPE_COMPACT_POINTCLOUD) {
-      using RELiteAnglehvTable =
-        AngleHV(&)[kPolygonMaxFacets][kPolygonTableSize][kInnoRobinELiteMaxSetNumber][kMaxReceiverInSet];
-      RELiteAnglehvTable table = reinterpret_cast<RELiteAnglehvTable>(*const_cast<char *>((anglehv_table)));
+      using RELiteAnglehvTable = AngleHV(&)[kPolygonMaxFacets][kPolygonTableSize]
+                                           [kInnoRobinELiteMaxSetNumber][kMaxReceiverInSet];
+      RELiteAnglehvTable table =
+          reinterpret_cast<RELiteAnglehvTable>(*const_cast<char*>((anglehv_table)));
       max_set_number = kInnoRobinELiteMaxSetNumber;
       b1 = &table[facet_num][h_idx][set_num][0];
     } else {
-      using RWAngleHvTable =
-        AngleHV(&)[kPolygonMaxFacets][kPolygonTableSize][kInnoRobinWMaxSetNumber][kMaxReceiverInSet];
-      RWAngleHvTable table = reinterpret_cast<RWAngleHvTable>(*const_cast<char *>((anglehv_table)));
+      using RWAngleHvTable = AngleHV(&)[kPolygonMaxFacets][kPolygonTableSize]
+                                       [kInnoRobinWMaxSetNumber][kMaxReceiverInSet];
+      RWAngleHvTable table = reinterpret_cast<RWAngleHvTable>(*const_cast<char*>((anglehv_table)));
       b1 = &table[facet_num][h_idx][set_num][0];
     }
     // Perform interpolation for each receiver
@@ -384,23 +414,22 @@ class InnoDataPacketUtils {
     }
   }
 
-
-/**
- * @brief check if the point is pin scanline
- * @param type point type
- * @param firing strong or weak firing
- * @param scan_id scan id
- * @return true if the point is pin scanline, false otherwise
- */
+  /**
+   * @brief check if the point is pin scanline
+   * @param type point type
+   * @param firing strong or weak firing
+   * @param scan_id scan id
+   * @return true if the point is pin scanline, false otherwise
+   */
   static inline bool is_robinw_pin_scanline(InnoItemType type, uint32_t firing, uint32_t scan_id) {
-  if (type == INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD && firing == 0 &&
-      (scan_id == 1 || scan_id == 25 || scan_id == 49 || scan_id == 73 || scan_id == 97 || scan_id == 121 ||
-       scan_id == 145 || scan_id == 169)) {
-    return true;
-  } else {
-    return false;
+    if (type == INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD && firing == 0 &&
+        (scan_id == 1 || scan_id == 25 || scan_id == 49 || scan_id == 73 || scan_id == 97 ||
+         scan_id == 121 || scan_id == 145 || scan_id == 169)) {
+      return true;
+    } else {
+      return false;
+    }
   }
-}
 
   /**
    * @brief Get the block size in bytes and number of returns in the pkt
@@ -409,8 +438,9 @@ class InnoDataPacketUtils {
    * @param number_return Return number of returns in the pkt
    * @return Void
    */
-  static inline void get_block_size_and_number_return(const InnoDataPacket &pkt, uint32_t *block_size_in_byte,
-                                                      uint32_t *number_return) {
+  static inline void get_block_size_and_number_return(const InnoDataPacket& pkt,
+                                                      uint32_t* block_size_in_byte,
+                                                      uint32_t* number_return) {
     inno_log_verify(CHECK_SPHERE_POINTCLOUD_DATA(pkt.type), "invalid pkt type %u", pkt.type);
     if (CHECK_EN_SPHERE_POINTCLOUD_DATA(pkt.type)) {
       if (pkt.multi_return_mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST ||
@@ -465,9 +495,13 @@ class InnoDataPacketUtils {
    * @param result Store result.
    * @return Void
    */
-  static void get_xyzr_meter(const InnoBlockAngles angles, const uint32_t radius_unit, const uint32_t channel,
-                             InnoXyzrD *result, InnoItemType type = INNO_ITEM_TYPE_SPHERE_POINTCLOUD,
-                             uint32_t firing = 1, bool long_distance_mode = false);
+  static void get_xyzr_meter(const InnoBlockAngles angles,
+                             const uint32_t radius_unit,
+                             const uint32_t channel,
+                             InnoXyzrD* result,
+                             InnoItemType type = INNO_ITEM_TYPE_SPHERE_POINTCLOUD,
+                             uint32_t firing = 1,
+                             bool long_distance_mode = false);
 
   /**
    * @brief convert an InnoChannelPoint in a block to
@@ -479,11 +513,15 @@ class InnoDataPacketUtils {
    * @param pt Destination InnoXyzPoint
    * @return number of points in the data packet. -1 if invalid item type
    */
-  static inline void get_xyz_point(const InnoBlockHeader &block, const InnoChannelPoint &cp,
-                                   const InnoBlockAngles angles, const uint32_t channel, InnoXyzPoint *pt,
+  static inline void get_xyz_point(const InnoBlockHeader& block,
+                                   const InnoChannelPoint& cp,
+                                   const InnoBlockAngles angles,
+                                   const uint32_t channel,
+                                   InnoXyzPoint* pt,
                                    bool long_distance_mode = false) {
     InnoXyzrD xyzr;
-    get_xyzr_meter(angles, cp.radius, channel, &xyzr, INNO_ITEM_TYPE_SPHERE_POINTCLOUD, 1, long_distance_mode);
+    get_xyzr_meter(
+        angles, cp.radius, channel, &xyzr, INNO_ITEM_TYPE_SPHERE_POINTCLOUD, 1, long_distance_mode);
     if (vehicle_coordinate_ == 1) {
       pt->x = xyzr.z;
       pt->y = -xyzr.y;
@@ -517,15 +555,19 @@ class InnoDataPacketUtils {
      * @param pt Destination InnoXyzPoint
      * @return number of points in the data packet. -1 if invalid item type
      */
-  static inline void get_xyz_point(const InnoEnBlockHeader &block, const InnoEnChannelPoint &cp,
-                                   const InnoBlockAngles angles, const uint32_t channel, InnoEnXyzPoint *pt,
+  static inline void get_xyz_point(const InnoEnBlockHeader& block,
+                                   const InnoEnChannelPoint& cp,
+                                   const InnoBlockAngles angles,
+                                   const uint32_t channel,
+                                   InnoEnXyzPoint* pt,
                                    InnoItemType type) {
     InnoXyzrD xyzr;
     uint32_t scan_id = 0;
     if (type == INNO_FALCONII_DOT_1_ITEM_TYPE_SPHERE_POINTCLOUD) {
       scan_id = block.scan_id;
       get_xyzr_meter(angles, cp.radius, channel, &xyzr, type);
-    } else if (type == INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD || type == INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD) {
+    } else if (type == INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD ||
+               type == INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD) {
       DEFINE_INNO_ITEM_TYPE_SPECIFIC_DATA(type);
       int index = block.scan_id * 4 + channel;
       scan_id = channel_mapping[index] + block.facet * tdc_channel_number;
@@ -557,8 +599,11 @@ class InnoDataPacketUtils {
        * @param pt Destination InnoXyzPoint
        * @return number of points in the data packet. -1 if invalid item type
        */
-  static inline void get_xyz_point(const InnoCoBlockHeader &block, const InnoCoChannelPoint &cp,
-                                   const InnoBlockAngles angles, const uint32_t channel, InnoEnXyzPoint *pt,
+  static inline void get_xyz_point(const InnoCoBlockHeader& block,
+                                   const InnoCoChannelPoint& cp,
+                                   const InnoBlockAngles angles,
+                                   const uint32_t channel,
+                                   InnoEnXyzPoint* pt,
                                    InnoItemType type) {
     InnoXyzrD xyzr;
     uint32_t scan_id = 0;
@@ -596,8 +641,9 @@ class InnoDataPacketUtils {
    * @param ctx Callback context
    * @return number of points in the data packet.
    */
-  static inline ssize_t iterate_cpoints(const InnoDataPacket &pkt, InnoDataPacketPointsIterCallback callback,
-                                        void *ctx) {
+  static inline ssize_t iterate_cpoints(const InnoDataPacket& pkt,
+                                        InnoDataPacketPointsIterCallback callback,
+                                        void* ctx) {
     inno_log_verify(pkt.type == INNO_ITEM_TYPE_SPHERE_POINTCLOUD, "invalid pkt type %u", pkt.type);
     size_t pcount = 0;
     ITERARATE_INNO_DATA_PACKET_CPOINTS(callback, ctx, &pkt, pcount);
@@ -612,8 +658,9 @@ class InnoDataPacketUtils {
    * @param ctx Callback context
    * @return number of points in the data packet.
    */
-  static inline ssize_t iterate_xyz_points(const InnoDataPacket &pkt, InnoDataPacketXyzPointsIterCallback callback,
-                                           void *ctx) {
+  static inline ssize_t iterate_xyz_points(const InnoDataPacket& pkt,
+                                           InnoDataPacketXyzPointsIterCallback callback,
+                                           void* ctx) {
     inno_log_verify(CHECK_XYZ_POINTCLOUD_DATA(pkt.type), "invalid pkt type %u", pkt.type);
     ITERARATE_INNO_DATA_PACKET_XYZ_POINTS(callback, ctx, &pkt);
     return pkt.item_number;
@@ -627,54 +674,56 @@ class InnoDataPacketUtils {
    * @param mode Multi-return mode
    * @return size of data packet in bytes. Return 0 if the type is invalid.
    */
-  static inline size_t get_data_packet_size(InnoItemType type, uint32_t item_count, InnoMultipleReturnMode mode) {
+  static inline size_t get_data_packet_size(InnoItemType type,
+                                            uint32_t item_count,
+                                            InnoMultipleReturnMode mode) {
     size_t unit_size;
 
     switch (type) {
-    case INNO_ITEM_TYPE_SPHERE_POINTCLOUD:
-      if (mode == INNO_MULTIPLE_RETURN_MODE_SINGLE) {
-        unit_size = sizeof(InnoBlock1);
-      } else if (mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST ||
-                 mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST_FURTHEST) {
-        unit_size = sizeof(InnoBlock2);
-      } else {
-        return 0;
-      }
-      break;
-    case INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD:
-    case INNO_ROBINELITE_ITEM_TYPE_COMPACT_POINTCLOUD:
-      if (mode == INNO_MULTIPLE_RETURN_MODE_SINGLE) {
-        unit_size = sizeof(InnoCoBlock1);
-      } else if (mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST ||
-                 mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST_FURTHEST) {
-        unit_size = sizeof(InnoCoBlock2);
-      } else {
-        return 0;
-      }
-      break;
-    case INNO_ITEM_TYPE_XYZ_POINTCLOUD:
-      unit_size = sizeof(InnoXyzPoint);
-      break;
-    case INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD:
-    case INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD:
-    case INNO_FALCONII_DOT_1_ITEM_TYPE_SPHERE_POINTCLOUD:
-      if (mode == INNO_MULTIPLE_RETURN_MODE_SINGLE) {
-        unit_size = sizeof(InnoEnBlock1);
-      } else if (mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST ||
-                 mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST_FURTHEST) {
-        unit_size = sizeof(InnoEnBlock2);
-      } else {
-        return 0;
-      }
-      break;
-    case INNO_ROBINE_ITEM_TYPE_XYZ_POINTCLOUD:
-    case INNO_ROBINW_ITEM_TYPE_XYZ_POINTCLOUD:
-    case INNO_FALCONII_DOT_1_ITEM_TYPE_XYZ_POINTCLOUD:
-    case INNO_ROBINELITE_ITEM_TYPE_XYZ_POINTCLOUD:
-      unit_size = sizeof(InnoEnXyzPoint);
-      break;
-    default:
-      inno_log_verify(false, "bad type = %d", type);
+      case INNO_ITEM_TYPE_SPHERE_POINTCLOUD:
+        if (mode == INNO_MULTIPLE_RETURN_MODE_SINGLE) {
+          unit_size = sizeof(InnoBlock1);
+        } else if (mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST ||
+                   mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST_FURTHEST) {
+          unit_size = sizeof(InnoBlock2);
+        } else {
+          return 0;
+        }
+        break;
+      case INNO_ROBINW_ITEM_TYPE_COMPACT_POINTCLOUD:
+      case INNO_ROBINELITE_ITEM_TYPE_COMPACT_POINTCLOUD:
+        if (mode == INNO_MULTIPLE_RETURN_MODE_SINGLE) {
+          unit_size = sizeof(InnoCoBlock1);
+        } else if (mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST ||
+                   mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST_FURTHEST) {
+          unit_size = sizeof(InnoCoBlock2);
+        } else {
+          return 0;
+        }
+        break;
+      case INNO_ITEM_TYPE_XYZ_POINTCLOUD:
+        unit_size = sizeof(InnoXyzPoint);
+        break;
+      case INNO_ROBINE_ITEM_TYPE_SPHERE_POINTCLOUD:
+      case INNO_ROBINW_ITEM_TYPE_SPHERE_POINTCLOUD:
+      case INNO_FALCONII_DOT_1_ITEM_TYPE_SPHERE_POINTCLOUD:
+        if (mode == INNO_MULTIPLE_RETURN_MODE_SINGLE) {
+          unit_size = sizeof(InnoEnBlock1);
+        } else if (mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST ||
+                   mode == INNO_MULTIPLE_RETURN_MODE_2_STRONGEST_FURTHEST) {
+          unit_size = sizeof(InnoEnBlock2);
+        } else {
+          return 0;
+        }
+        break;
+      case INNO_ROBINE_ITEM_TYPE_XYZ_POINTCLOUD:
+      case INNO_ROBINW_ITEM_TYPE_XYZ_POINTCLOUD:
+      case INNO_FALCONII_DOT_1_ITEM_TYPE_XYZ_POINTCLOUD:
+      case INNO_ROBINELITE_ITEM_TYPE_XYZ_POINTCLOUD:
+        unit_size = sizeof(InnoEnXyzPoint);
+        break;
+      default:
+        inno_log_verify(false, "bad type = %d", type);
     }
     return sizeof(InnoDataPacket) + item_count * unit_size;
   }
@@ -697,9 +746,10 @@ class InnoDataPacketUtils {
    * @return converted InnoDataPacket allocated by malloc.
              return NULL if malloc failed or invalid packet
    */
-  static InnoDataPacket *convert_to_xyz_pointcloud_malloced(const InnoDataPacket &src,
-                                                            RingIdConverterInterface *ring_id_converter = NULL,
-                                                            const char *hvangle_table = NULL);
+  static InnoDataPacket* convert_to_xyz_pointcloud_malloced(
+      const InnoDataPacket& src,
+      RingIdConverterInterface* ring_id_converter = NULL,
+      const char* hvangle_table = NULL);
   /**
    * @brief Convert INNO_ITEM_TYPE_SPHERE_POINTCLOUD points the source
             data packet to INNO_ITEM_TYPE_XYZ_POINTCLOUD and add them
@@ -710,12 +760,17 @@ class InnoDataPacketUtils {
    * @param crc_disable Disable do crc for dest packet
    * @param ring_id_converter RingIdConverterInterface, only used for falcon to get ring id
    * @param hvangle_table hvangle table, only used for robin
-   * @param append  true: append the convert data to dest, if assemble multiple packets to one frame need to set true
+   * @param append  true: append the convert data to dest, if assemble multiple packets to one frame
+   need to set true
    * @return false if the pkt is invalid, true otherwise
    */
-  static bool convert_to_xyz_pointcloud(const InnoDataPacket &src, InnoDataPacket *dest, size_t dest_size,
-                                        bool crc_disable, RingIdConverterInterface *ring_id_converter = NULL,
-                                        const char *hvangle_table = NULL, bool append = false);
+  static bool convert_to_xyz_pointcloud(const InnoDataPacket& src,
+                                        InnoDataPacket* dest,
+                                        size_t dest_size,
+                                        bool crc_disable,
+                                        RingIdConverterInterface* ring_id_converter = NULL,
+                                        const char* hvangle_table = NULL,
+                                        bool append = false);
 
   /**
    * @brief Sanity check the integrity of a InnoDataPacketGet.
@@ -724,7 +779,7 @@ class InnoDataPacketUtils {
    *        read from file
    * @return false if the pkt is invalid, true otherwise
    */
-  static bool check_data_packet(const InnoDataPacket &pkt, size_t size);
+  static bool check_data_packet(const InnoDataPacket& pkt, size_t size);
 
   /**
    * @brief Sanity check the integrity of a InnoDataPacketGet.
@@ -733,14 +788,14 @@ class InnoDataPacketUtils {
    *        read from file, 0 means don't check size
    * @return false if the pkt is invalid, true otherwise
    */
-  static bool check_status_packet(const InnoStatusPacket &pkt, size_t size);
+  static bool check_status_packet(const InnoStatusPacket& pkt, size_t size);
 
   /**
    * @brief check if occur fault
    * @param pkt StatusPacket
    * @return false if not occur fault, true otherwise
    */
-  static bool check_status_packet_fault(const InnoStatusPacket &pkt);
+  static bool check_status_packet_fault(const InnoStatusPacket& pkt);
 
   /**
    * @brief Correct IMU status data based on IMU position
@@ -749,7 +804,7 @@ class InnoDataPacketUtils {
    * @param is_wgs is_wgs IMU physical direction, falcon-k: false falcon-k24: true
    * @return false if not occur fault, true otherwise
    */
-  static bool fix_imu_status(const InnoStatusPacket &pkt, InnoStatusPacket &out_pkt, bool is_wgs);
+  static bool fix_imu_status(const InnoStatusPacket& pkt, InnoStatusPacket& out_pkt, bool is_wgs);
 
   /**
    * @brief check if occur fault specified by fault id
@@ -757,7 +812,7 @@ class InnoDataPacketUtils {
    * @param fid fault id
    * @return false if not occur fault, true otherwise
    */
-  static bool check_status_packet_fault_id(const InnoStatusPacket &pkt, int fid);
+  static bool check_status_packet_fault_id(const InnoStatusPacket& pkt, int fid);
 
   /**
    * @brief InnoStatusPacket formatted output.
@@ -769,7 +824,7 @@ class InnoDataPacketUtils {
    *         used to end output to strings).
    *         If an output error is encountered, a negative value is returned.
    */
-  static int printf_status_packet(const InnoStatusPacket &pkt, char *buffer, size_t buffer_size);
+  static int printf_status_packet(const InnoStatusPacket& pkt, char* buffer, size_t buffer_size);
 
   /**
    * @brief init Raw4UdpHeader by net buffer.
@@ -778,7 +833,7 @@ class InnoDataPacketUtils {
    * @param header      Raw4UdpHeader to be filled
    * @return true: successful, false: failed.
    */
-  static bool raw4_header_from_net(const char *buffer, size_t buffer_size, Raw4UdpHeader *header);
+  static bool raw4_header_from_net(const char* buffer, size_t buffer_size, Raw4UdpHeader* header);
 
   /**
    * @brief fill net buffer by init Raw4UdpHeader.
@@ -787,7 +842,7 @@ class InnoDataPacketUtils {
    * @param buffer_size  Buffer size
    * @return true: successful, false: failed.
    */
-  static bool raw4_header_to_net(const Raw4UdpHeader &header, char *buffer, size_t buffer_size);
+  static bool raw4_header_to_net(const Raw4UdpHeader& header, char* buffer, size_t buffer_size);
 
   /**
    * @brief Get the number of points in the pkt, have to iterate each
@@ -795,12 +850,12 @@ class InnoDataPacketUtils {
    * @param pkt DataPacket
    * @return number of points in the pkt
    */
-  static inline uint32_t get_points_count(const InnoDataPacket &pkt) {
-#define ADD_FN(ctx, p, b, pt, full_angles, ch, m)                                                                      \
-  do {                                                                                                                 \
-    if (pt.radius) {                                                                                                   \
-      item_count++;                                                                                                    \
-    }                                                                                                                  \
+  static inline uint32_t get_points_count(const InnoDataPacket& pkt) {
+#define ADD_FN(ctx, p, b, pt, full_angles, ch, m) \
+  do {                                            \
+    if (pt.radius) {                              \
+      item_count++;                               \
+    }                                             \
   } while (0)
     if (CHECK_XYZ_POINTCLOUD_DATA(pkt.type)) {
       return pkt.item_number;
@@ -829,19 +884,19 @@ class InnoDataPacketUtils {
    * @param pkt DataPacket
    * @return Return number of points in the pkt which has 2nd return
    */
-  static inline uint64_t get_points_count_2nd_return(const InnoDataPacket &pkt) {
+  static inline uint64_t get_points_count_2nd_return(const InnoDataPacket& pkt) {
     if (CHECK_XYZ_POINTCLOUD_DATA(pkt.type)) {
       uint64_t cnt = 0;
       if (pkt.type == INNO_ITEM_TYPE_XYZ_POINTCLOUD) {
-      const InnoXyzPoint *xyz_points = reinterpret_cast<const InnoXyzPoint *>(pkt.payload);
-      for (auto i = 0; i < pkt.item_number; ++i) {
-        cnt += xyz_points[i].is_2nd_return;
-      }
+        const InnoXyzPoint* xyz_points = reinterpret_cast<const InnoXyzPoint*>(pkt.payload);
+        for (auto i = 0; i < pkt.item_number; ++i) {
+          cnt += xyz_points[i].is_2nd_return;
+        }
       } else {
-      const InnoEnXyzPoint *xyz_points = reinterpret_cast<const InnoEnXyzPoint *>(pkt.payload);
-      for (auto i = 0; i < pkt.item_number; ++i) {
-        cnt += xyz_points[i].is_2nd_return;
-      }
+        const InnoEnXyzPoint* xyz_points = reinterpret_cast<const InnoEnXyzPoint*>(pkt.payload);
+        for (auto i = 0; i < pkt.item_number; ++i) {
+          cnt += xyz_points[i].is_2nd_return;
+        }
       }
 
       return cnt;
@@ -857,14 +912,15 @@ class InnoDataPacketUtils {
    * @param pkt DataPacket
    * @return max number of points in the pkt
    */
-  static inline uint32_t get_max_points_count(const InnoDataPacket &pkt) {
+  static inline uint32_t get_max_points_count(const InnoDataPacket& pkt) {
     if (CHECK_XYZ_POINTCLOUD_DATA(pkt.type)) {
       return pkt.item_number;
     } else if (CHECK_CO_SPHERE_POINTCLOUD_DATA(pkt.type)) {
       return pkt.item_number * kInnoCompactChannelNumber *
              (pkt.multi_return_mode == INNO_MULTIPLE_RETURN_MODE_SINGLE ? 1 : 2);
     } else if (CHECK_SPHERE_POINTCLOUD_DATA(pkt.type)) {
-      return pkt.item_number * kInnoChannelNumber * (pkt.multi_return_mode == INNO_MULTIPLE_RETURN_MODE_SINGLE ? 1 : 2);
+      return pkt.item_number * kInnoChannelNumber *
+             (pkt.multi_return_mode == INNO_MULTIPLE_RETURN_MODE_SINGLE ? 1 : 2);
     } else {
       inno_log_verify(false, "invalid type %u", pkt.type);
     }
@@ -881,20 +937,20 @@ class InnoPacketReader {
    * @param header InnoCommonHeader
    * @return Return crc32
    */
-  static uint32_t calculate_packet_crc32(const InnoCommonHeader *header);
+  static uint32_t calculate_packet_crc32(const InnoCommonHeader* header);
 
   /**
    * @brief Set packet crc32
    * @param header InnoCommonHeader
    */
-  static void set_packet_crc32(InnoCommonHeader *header);
+  static void set_packet_crc32(InnoCommonHeader* header);
 
   /**
    * @brief Verify packet crc32
    * @param header InnoCommonHeader
    * @return Return true if crc32 is correct, otherwise return false
    */
-  static bool verify_packet_crc32(const InnoCommonHeader *header);
+  static bool verify_packet_crc32(const InnoCommonHeader* header);
 
   /**
    * @brief Get http buffer crc32
@@ -903,7 +959,7 @@ class InnoPacketReader {
    * @param append    True to calculate crc32 with separator
    * @return Return crc32
    */
-  static uint32_t calculate_http_crc32(const char *buffer, uint32_t length, bool append = false);
+  static uint32_t calculate_http_crc32(const char* buffer, uint32_t length, bool append = false);
 
   /**
    * @brief Verify http buffer crc32
@@ -911,7 +967,7 @@ class InnoPacketReader {
    * @param url      Http url
    * @return  Return 0 if crc32 is correct, others for error
    */
-  static int verify_http_crc32(const char *buffer, const char *url);
+  static int verify_http_crc32(const char* buffer, const char* url);
 };
 };
 
@@ -940,42 +996,35 @@ class InnoSummaryPackage {
     miss_sub_frame_last_one_counter_ = 0;
     miss_sub_frame_except_last_one_counter_ = 0;
     empty_sub_frame_counter_ = 0;
-    last_print_time_ =
-      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-        .count();
+    last_print_time_ = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::system_clock::now().time_since_epoch())
+                           .count();
   }
-  ~InnoSummaryPackage() {
-  }
+  ~InnoSummaryPackage() {}
   /**
    * @brief Summary frame count, miss frame count, miss sub frame count and etc. from data package
    * @param pkt DataPacket
    * @return Return 0 if no frame missing, otherwise return error code
    */
-  int summary_data_package(const InnoDataPacket &pkt);
+  int summary_data_package(const InnoDataPacket& pkt);
 
   /**
    * @brief Get count of missed frames
    * @return Return count of missed frames
    */
-  uint64_t get_miss_frame_count(void) {
-    return miss_frame_counter_;
-  }
+  uint64_t get_miss_frame_count(void) { return miss_frame_counter_; }
 
   /**
    * @brief Get count of gaps those have missed sub frames
    * @return Return count of gaps those have missed sub frames
    */
-  uint64_t get_miss_sub_frame_gap_count(void) {
-    return miss_sub_frame_gap_counter_;
-  }
+  uint64_t get_miss_sub_frame_gap_count(void) { return miss_sub_frame_gap_counter_; }
 
   /**
    * @brief Get total receive inno data packet
    * @return Return count of missed sub frames
    */
-  uint64_t get_total_receive_inno_packet(void) {
-    return total_receive_packet_;
-  }
+  uint64_t get_total_receive_inno_packet(void) { return total_receive_packet_; }
 
   /**
    * @brief Get expect receive inno data packet
@@ -1000,17 +1049,13 @@ class InnoSummaryPackage {
    * @brief Get count of sub frames whose items count is 0
    * @return Return count of sub frames whose items count is 0
    */
-  uint64_t get_empty_sub_frame_count(void) {
-    return empty_sub_frame_counter_;
-  }
+  uint64_t get_empty_sub_frame_count(void) { return empty_sub_frame_counter_; }
 
   /**
    * @brief Get count of frames whose is_last_sub_frame flag is missing
    * @param Return count of frames whose is_last_sub_frame flag is missing
    */
-  uint64_t get_miss_sub_frame_last_one_count(void) {
-    return miss_sub_frame_last_one_counter_;
-  }
+  uint64_t get_miss_sub_frame_last_one_count(void) { return miss_sub_frame_last_one_counter_; }
 
   /**
    * @brief Get the count of missed sub frames
@@ -1039,7 +1084,7 @@ class InnoSummaryPackage {
     }
   }
 
-  void inno_data_packet_receive_stats(const InnoDataPacket &pkt);
+  void inno_data_packet_receive_stats(const InnoDataPacket& pkt);
   void init_seq_num(uint16_t seqNum);
   void print_inno_data_packet_loss_rate(int print_interval_ms = 30000);
 

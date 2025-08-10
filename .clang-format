@@ -1,0 +1,8 @@
+# default google style
+BasedOnStyle: Google
+BinPackArguments: false
+BinPackParameters: false
+PointerAlignment: Left
+DerivePointerAlignment: false
+CommentPragmas: NOLINT.*
+ColumnLimit: 100

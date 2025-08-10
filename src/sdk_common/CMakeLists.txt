@@ -23,6 +23,7 @@ else()
     add_library(${PROJECT_NAME} ${DIR_SRCS})
 endif()
 
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/../../lib)
 
 # #######################

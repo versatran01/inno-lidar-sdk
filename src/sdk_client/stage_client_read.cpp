@@ -7,23 +7,23 @@
  */
 
 #include "sdk_client/stage_client_read.h"
-#include "sdk_client/stage_client_read_pcap.h"
 
 #include <thread>
 
 #include "sdk_client/inno_lidar_packet_v1_adapt.h"
 #include "sdk_client/lidar_client.h"
 #include "sdk_client/lidar_client_communication.h"
+#include "sdk_client/stage_client_read_pcap.h"
 #include "sdk_common/inno_lidar_packet_utils.h"
 
 namespace innovusion {
-StageClientRead::StageClientRead(InnoLidarClient *l, LidarClientCommunication *lm, void *ctx) {
+StageClientRead::StageClientRead(InnoLidarClient* l, LidarClientCommunication* lm, void* ctx) {
   state_ = InnoLidarBase::STATE_INIT;
   lidar_ = l;
   lidar_->add_config(&config_base_);
   config_.copy_from_src(&config_base_);
   lidar_comm_ = lm;
-  InputParam *param = reinterpret_cast<InputParam *>(ctx);
+  InputParam* param = reinterpret_cast<InputParam*>(ctx);
   source_ = param->base_param.source_type;
   create_input_(ctx);
   input_->set_misorder_correct_enable(config_.misorder_correct_enable);
@@ -65,9 +65,12 @@ void StageClientRead::stop(void) {
       return state_ != InnoLidarBase::STATE_INIT;
     });
   }
-  inno_log_verify(state_ == InnoLidarBase::STATE_READING || state_ == InnoLidarBase::STATE_STOPPED ||
+  inno_log_verify(state_ == InnoLidarBase::STATE_READING ||
+                      state_ == InnoLidarBase::STATE_STOPPED ||
                       state_ == InnoLidarBase::STATE_STOPPING,
-                  "%s state=%d, forget to call start before stop?", get_name_(), state_);
+                  "%s state=%d, forget to call start before stop?",
+                  get_name_(),
+                  state_);
   if (state_ == InnoLidarBase::STATE_READING) {
     state_ = InnoLidarBase::STATE_STOPPING;
     input_->stop();
@@ -89,17 +92,15 @@ void StageClientRead::final_cleanup(void) {
   cond_.notify_all();
 }
 
-void StageClientRead::print_stats(void) const {
-  inno_log_trace("StageRead: %s", "XXX TODO");
-}
+void StageClientRead::print_stats(void) const { inno_log_trace("StageRead: %s", "XXX TODO"); }
 
-int StageClientRead::process(void *in_job, void *ctx, bool prefer) {
+int StageClientRead::process(void* in_job, void* ctx, bool prefer) {
   // in_job is ignored
-  StageClientRead *s = reinterpret_cast<StageClientRead *>(ctx);
+  StageClientRead* s = reinterpret_cast<StageClientRead*>(ctx);
   return s->process_job_(in_job);
 }
 
-int StageClientRead::process_job_(void *in_job) {
+int StageClientRead::process_job_(void* in_job) {
   int ret;
   config_.copy_from_src(&config_base_);
   input_->set_misorder_correct_enable(config_.misorder_correct_enable);
@@ -110,7 +111,9 @@ int StageClientRead::process_job_(void *in_job) {
       ret = input_->read_data();
       if (ret == -3) {
         // reach_file_end
-        lidar_->do_message_callback_fmt(INNO_MESSAGE_LEVEL_INFO, INNO_MESSAGE_CODE_READ_FILE_END, "%s reach file end",
+        lidar_->do_message_callback_fmt(INNO_MESSAGE_LEVEL_INFO,
+                                        INNO_MESSAGE_CODE_READ_FILE_END,
+                                        "%s reach file end",
                                         get_name_());
         ret = 0;
         break;
@@ -137,8 +140,11 @@ int StageClientRead::process_job_(void *in_job) {
 
   {
     std::unique_lock<std::mutex> lk(mutex_);
-    inno_log_panic_if_not(state_ == InnoLidarBase::STATE_READING || state_ == InnoLidarBase::STATE_STOPPING,
-                          "%s state=%d", get_name_(), state_);
+    inno_log_panic_if_not(
+        state_ == InnoLidarBase::STATE_READING || state_ == InnoLidarBase::STATE_STOPPING,
+        "%s state=%d",
+        get_name_(),
+        state_);
     state_ = InnoLidarBase::STATE_STOPPED;
     input_->stop();
     inno_log_info("%s reader new state %d", get_name_(), state_);
@@ -148,13 +154,15 @@ int StageClientRead::process_job_(void *in_job) {
 }
 
 void StageClientRead::send_fatal_message_() {
-  lidar_->do_message_callback_fmt(INNO_MESSAGE_LEVEL_CRITICAL, INNO_MESSAGE_CODE_CANNOT_READ,
-                                  "cannot read from lidar %s", get_name_());
+  lidar_->do_message_callback_fmt(INNO_MESSAGE_LEVEL_CRITICAL,
+                                  INNO_MESSAGE_CODE_CANNOT_READ,
+                                  "cannot read from lidar %s",
+                                  get_name_());
 }
 
-bool StageClientRead::create_input_(const void *ctx) {
+bool StageClientRead::create_input_(const void* ctx) {
   if (source_ == SOURCE_FILE) {
-    const InputParam *param = reinterpret_cast<const InputParam *>(ctx);
+    const InputParam* param = reinterpret_cast<const InputParam*>(ctx);
     lidar_->set_play_rate_(param->file_param.play_rate);
     input_ = new FileInput(lidar_, ctx);
   } else if (source_ == SOURCE_TCP) {
@@ -162,7 +170,7 @@ bool StageClientRead::create_input_(const void *ctx) {
   } else if (source_ == SOURCE_UDP) {
     input_ = new UdpInput(lidar_, ctx);
   } else if (source_ == SOURCE_PCAP) {
-    const InputParam *param = reinterpret_cast<const InputParam *>(ctx);
+    const InputParam* param = reinterpret_cast<const InputParam*>(ctx);
     lidar_->set_play_rate_(param->pcap_param.play_rate);
     input_ = new PcapInput(lidar_, ctx);
   } else {
@@ -170,7 +178,8 @@ bool StageClientRead::create_input_(const void *ctx) {
     return false;
   }
   inno_log_verify(input_, "input_");
-  input_->set_deliver_packet_callback(std::bind(&StageClientRead::add_deliver_packet_, this, std::placeholders::_1));
+  input_->set_deliver_packet_callback(
+      std::bind(&StageClientRead::add_deliver_packet_, this, std::placeholders::_1));
   input_->set_deliver_packet_after_correct_callback(
       std::bind(&StageClientRead::add_deliver_packet_after_correct_, this, std::placeholders::_1));
   input_->set_fatal_message_callback(std::bind(&StageClientRead::send_fatal_message_, this));
@@ -189,19 +198,19 @@ bool StageClientRead::stopping_or_stopped_() {
   }
 }
 
-void StageClientRead::add_deliver_packet_(InnoCommonHeader *header) {
+void StageClientRead::add_deliver_packet_(InnoCommonHeader* header) {
   lidar_->stats_update_packet_bytes(ResourceStats::PACKET_TYPE_SRC, 1, header->size);
   inno_pc_recorder(header);
   lidar_->add_deliver_job_(header);
 }
 
-void StageClientRead::inno_pc_recorder(InnoCommonHeader *header) {
+void StageClientRead::inno_pc_recorder(InnoCommonHeader* header) {
   //  async recorder inno_pc
   if (lidar_->recorder_callbacks_[INNO_RECORDER_CALLBACK_TYPE_INNO_PC] &&
       header->version.magic_number == kInnoMagicNumberDataPacket &&
-      reinterpret_cast<InnoDataPacket *>(header)->type != INNO_ITEM_TYPE_MESSAGE &&
-      reinterpret_cast<InnoDataPacket *>(header)->type != INNO_ITEM_TYPE_MESSAGE_LOG) {
-    char *data = reinterpret_cast<char *>(lidar_->alloc_buffer_(lidar_->kMaxPacketSize));
+      reinterpret_cast<InnoDataPacket*>(header)->type != INNO_ITEM_TYPE_MESSAGE &&
+      reinterpret_cast<InnoDataPacket*>(header)->type != INNO_ITEM_TYPE_MESSAGE_LOG) {
+    char* data = reinterpret_cast<char*>(lidar_->alloc_buffer_(lidar_->kMaxPacketSize));
 
     if (!recorder_queue_.isFull()) {
       memcpy(data, header, header->size);
@@ -225,7 +234,7 @@ void StageClientRead::inno_pc_recorder(InnoCommonHeader *header) {
 
 void StageClientRead::async_recorder() {
   while (recorder_thread_runing_) {
-    char *data_packet = nullptr;
+    char* data_packet = nullptr;
     if (!recorder_queue_.isEmpty()) {
       recorder_queue_.dequeue(data_packet);
     } else {
@@ -233,14 +242,15 @@ void StageClientRead::async_recorder() {
       recorder_cv_.wait(lck);
     }
     if (data_packet) {
-      lidar_->do_recorder_callback(INNO_RECORDER_CALLBACK_TYPE_INNO_PC, reinterpret_cast<char *>(data_packet),
-                                   +reinterpret_cast<InnoDataPacket *>(data_packet)->common.size);
+      lidar_->do_recorder_callback(INNO_RECORDER_CALLBACK_TYPE_INNO_PC,
+                                   reinterpret_cast<char*>(data_packet),
+                                   +reinterpret_cast<InnoDataPacket*>(data_packet)->common.size);
       lidar_->free_buffer_(data_packet);
     }
   }
   // free all the data_packet in recorder_queue_
   while (!recorder_queue_.isEmpty()) {
-    char *data_packet = nullptr;
+    char* data_packet = nullptr;
     recorder_queue_.dequeue(data_packet);
     if (data_packet) {
       lidar_->free_buffer_(data_packet);
@@ -266,7 +276,7 @@ void StageClientRead::free_cached_packet() {
   }
 }
 
-int StageClientRead::add_deliver_packet_after_correct_(InnoDataPacket *data_packet) {
+int StageClientRead::add_deliver_packet_after_correct_(InnoDataPacket* data_packet) {
   // fix error timestamp
   if (data_packet->common.ts_start_us < 0) {
     int64_t tmp = static_cast<int64_t>(data_packet->common.ts_start_us);
@@ -276,7 +286,7 @@ int StageClientRead::add_deliver_packet_after_correct_(InnoDataPacket *data_pack
     data_packet->common.ts_start_us = static_cast<double>(tmp) + decimals;
   }
 
-  auto next_expected = [&](InnoDataPacket *candidate) {
+  auto next_expected = [&](InnoDataPacket* candidate) {
     if (candidate->is_last_sub_frame) {
       expected_idx_ = candidate->idx + 1;
       expected_sub_idx_ = 0;
@@ -287,9 +297,12 @@ int StageClientRead::add_deliver_packet_after_correct_(InnoDataPacket *data_pack
   };
 
   // reset misorder queue, if idx jump step big then 10 frame, need to reset
-  if (input_->get_first_step() || abs(static_cast<int64_t>(data_packet->idx) - static_cast<int64_t>(expected_idx_)) >
-                                      kResetMisorderQueueFrameIdxDiff) {
-    inno_log_info("reset misorder queue, idx: %" PRI_SIZEU " | sub-idx: %u", data_packet->idx, data_packet->sub_idx);
+  if (input_->get_first_step() ||
+      abs(static_cast<int64_t>(data_packet->idx) - static_cast<int64_t>(expected_idx_)) >
+          kResetMisorderQueueFrameIdxDiff) {
+    inno_log_info("reset misorder queue, idx: %" PRI_SIZEU " | sub-idx: %u",
+                  data_packet->idx,
+                  data_packet->sub_idx);
     free_cached_packet();
     input_->set_first_step(true);
   }
@@ -311,13 +324,15 @@ int StageClientRead::add_deliver_packet_after_correct_(InnoDataPacket *data_pack
       }
     }
   } else {
-    // inno_log_info("found misorder InnoDataPacket   ----- idx: %" PRI_SIZEU " | sub-idx: %u ------", data_packet->idx,
+    // inno_log_info("found misorder InnoDataPacket   ----- idx: %" PRI_SIZEU " | sub-idx: %u
+    // ------", data_packet->idx,
     //               data_packet->sub_idx);
     if ((data_packet->idx == expected_idx_ && data_packet->sub_idx > expected_sub_idx_) ||
         data_packet->idx > expected_idx_) {
       misorder_que_.push(data_packet);
     } else {
-      inno_log_warning("unexpected InnoDataPacket idx: %" PRI_SIZEU " | sub-idx: %u ", data_packet->idx,
+      inno_log_warning("unexpected InnoDataPacket idx: %" PRI_SIZEU " | sub-idx: %u ",
+                       data_packet->idx,
                        data_packet->sub_idx);
       lidar_->free_buffer_(data_packet);
     }
@@ -344,23 +359,21 @@ int StageClientRead::add_deliver_packet_after_correct_(InnoDataPacket *data_pack
   return 0;
 }
 
-const char *StageClientRead::get_name_(void) const {
-  return lidar_->get_name();
-}
+const char* StageClientRead::get_name_(void) const { return lidar_->get_name(); }
 
 ////////////////////////////// FileInput //////////////////////////////
-int FileInput::read_fd_(char *buf, size_t len) {
+int FileInput::read_fd_(char* buf, size_t len) {
   return innovusion::NetManager::recv_full_buffer(fd_, buf, len, -1);
 }
 
 int FileInput::keep_reading_() {
-  InnoDataPacket *data_packet = NULL;
+  InnoDataPacket* data_packet = NULL;
   size_t data_len_max = kMaxReadSize;
   size_t data_len;
-  InnoDataPacket *message_packet = NULL;
+  InnoDataPacket* message_packet = NULL;
   size_t message_len_max = kMaxReadSize;
   size_t message_len;
-  InnoStatusPacket *status_packet = NULL;
+  InnoStatusPacket* status_packet = NULL;
   size_t status_len_max = kMaxReadSize;
   size_t status_len;
 
@@ -373,7 +386,7 @@ int FileInput::keep_reading_() {
   first_data_us_ = 0;
   latest_data_us_ = 0;
   total_byte_received_ = 0;
-  const char *name = lidar_->get_name();
+  const char* name = lidar_->get_name();
   int gap = InnoPacketV1Adapt::kMemorryFrontGap;
   int ret = 0;
   while (1) {
@@ -381,29 +394,35 @@ int FileInput::keep_reading_() {
       break;
     } else {
       if (data_packet == NULL) {
-        data_packet = reinterpret_cast<InnoDataPacket *>(lidar_->alloc_buffer_(data_len_max));
+        data_packet = reinterpret_cast<InnoDataPacket*>(lidar_->alloc_buffer_(data_len_max));
         inno_log_verify(data_packet, "out of memory");
       }
       data_len = data_len_max;
       if (message_packet == NULL) {
-        message_packet = reinterpret_cast<InnoDataPacket *>(lidar_->alloc_buffer_(message_len_max));
+        message_packet = reinterpret_cast<InnoDataPacket*>(lidar_->alloc_buffer_(message_len_max));
         inno_log_verify(message_packet, "out of memory");
       }
       message_len = message_len_max;
       if (status_packet == NULL) {
-        status_packet = reinterpret_cast<InnoStatusPacket *>(lidar_->alloc_buffer_(status_len_max));
+        status_packet = reinterpret_cast<InnoStatusPacket*>(lidar_->alloc_buffer_(status_len_max));
         inno_log_verify(status_packet, "out of memory");
       }
       status_len = status_len_max;
       int major_version = 0;
       bool is_anglehv_table = false;
-      int r = read_packet_(data_packet, &data_len, message_packet, &message_len, status_packet, &status_len,
-                           major_version, is_anglehv_table);
+      int r = read_packet_(data_packet,
+                           &data_len,
+                           message_packet,
+                           &message_len,
+                           status_packet,
+                           &status_len,
+                           major_version,
+                           is_anglehv_table);
       if (r > 0) {
         read_so_far += r;
         if (data_len) {
           data_cnt++;
-          char *ptr = reinterpret_cast<char *>(data_packet) + InnoPacketV1Adapt::kMemorryFrontGap;
+          char* ptr = reinterpret_cast<char*>(data_packet) + InnoPacketV1Adapt::kMemorryFrontGap;
           if ((major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1 &&
                InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(&ptr, r, gap)) ||
               InnoDataPacketUtils::check_data_packet(*data_packet, r)) {
@@ -419,7 +438,7 @@ int FileInput::keep_reading_() {
           }
         } else if (message_len) {
           message_cnt++;
-          char *ptr = reinterpret_cast<char *>(message_packet) + InnoPacketV1Adapt::kMemorryFrontGap;
+          char* ptr = reinterpret_cast<char*>(message_packet) + InnoPacketV1Adapt::kMemorryFrontGap;
           if ((major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1 &&
                InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(&ptr, r, gap)) ||
               InnoDataPacketUtils::check_data_packet(*message_packet, r)) {
@@ -446,7 +465,13 @@ int FileInput::keep_reading_() {
               "%s %s data is corrupted, "
               "ret=%d read_so_far=%" PRI_SIZELU "data_cnt=%" PRI_SIZELU " message_cnt=%" PRI_SIZELU
               " status_cnt=%" PRI_SIZELU,
-              name, filename_, r, read_so_far, data_cnt, message_cnt, status_cnt);
+              name,
+              filename_,
+              r,
+              read_so_far,
+              data_cnt,
+              message_cnt,
+              status_cnt);
           ret = -1;
           break;
         } else {
@@ -455,7 +480,13 @@ int FileInput::keep_reading_() {
               "%s reach end of %s, "
               "ret=%d read_so_far=%" PRI_SIZELU "data_cnt=%" PRI_SIZELU " message_cnt=%" PRI_SIZELU
               " status_cnt=%" PRI_SIZELU,
-              name, filename_, r, read_so_far, data_cnt, message_cnt, status_cnt);
+              name,
+              filename_,
+              r,
+              read_so_far,
+              data_cnt,
+              message_cnt,
+              status_cnt);
           ret = -2;
           break;
         }
@@ -465,7 +496,12 @@ int FileInput::keep_reading_() {
             "%s cannot read from connection, "
             "ret=%d read_so_far=%" PRI_SIZELU "data_cnt=%" PRI_SIZELU " message_cnt=%" PRI_SIZELU
             " status_cnt=%" PRI_SIZELU,
-            name, r, read_so_far, data_cnt, message_cnt, status_cnt);
+            name,
+            r,
+            read_so_far,
+            data_cnt,
+            message_cnt,
+            status_cnt);
         ret = -1;
         break;
       }
@@ -516,9 +552,14 @@ void FileInput::read_file_rate_control_(InnoTimestampUs last_data_us, int r) {
   return;
 }
 
-int FileInput::read_packet_(InnoDataPacket *data_packet, size_t *data_len, InnoDataPacket *message_packet,
-                            size_t *message_len, InnoStatusPacket *status_packet, size_t *status_len,
-                            int &major_version, bool &anglehv_table) {
+int FileInput::read_packet_(InnoDataPacket* data_packet,
+                            size_t* data_len,
+                            InnoDataPacket* message_packet,
+                            size_t* message_len,
+                            InnoStatusPacket* status_packet,
+                            size_t* status_len,
+                            int& major_version,
+                            bool& anglehv_table) {
   union {
     InnoCommonHeader header;
     char a_[0];
@@ -528,8 +569,10 @@ int FileInput::read_packet_(InnoDataPacket *data_packet, size_t *data_len, InnoD
   inno_log_verify(4 && message_len, "NULL pointer");
   inno_log_verify(status_packet && status_len, "NULL pointer");
   inno_log_verify(*data_len >= sizeof(InnoDataPacket), "%" PRI_SIZELU " too small", *data_len);
-  inno_log_verify(*message_len >= sizeof(InnoDataPacket), "%" PRI_SIZELU " too small", *message_len);
-  inno_log_verify(*status_len >= sizeof(InnoStatusPacket), "%" PRI_SIZELU " too small", *status_len);
+  inno_log_verify(
+      *message_len >= sizeof(InnoDataPacket), "%" PRI_SIZELU " too small", *message_len);
+  inno_log_verify(
+      *status_len >= sizeof(InnoStatusPacket), "%" PRI_SIZELU " too small", *status_len);
 
   int ret = read_fd_(a_, sizeof(InnoCommonHeader));
   if (ret != ssize_t(sizeof(InnoCommonHeader))) {
@@ -543,11 +586,12 @@ int FileInput::read_packet_(InnoDataPacket *data_packet, size_t *data_len, InnoD
     if (status_packet->common.version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1) {
       to_read = sizeof(InnoStatusPacketV1) - sizeof(InnoCommonHeader);
     }
-    ret = read_fd_(reinterpret_cast<char *>(status_packet) + sizeof(InnoCommonHeader), to_read);
+    ret = read_fd_(reinterpret_cast<char*>(status_packet) + sizeof(InnoCommonHeader), to_read);
     if (ret < to_read) {
       inno_log_warning("can not read version header, read return %d", ret);
       return -1;
-    } else if (status_packet->common.version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1 &&
+    } else if (status_packet->common.version.major_version ==
+                   InnoPacketV1Adapt::kInnoProtocolMajorV1 &&
                sizeof(InnoStatusPacketV1) == header.size) {
       *data_len = 0;
       *message_len = 0;
@@ -580,22 +624,23 @@ int FileInput::read_packet_(InnoDataPacket *data_packet, size_t *data_len, InnoD
       to_read = sizeof(InnoDataPacketV1) - sizeof(InnoCommonHeader);
     }
 
-    ret = read_fd_(reinterpret_cast<char *>(&dp) + sizeof(InnoCommonHeader), to_read);
+    ret = read_fd_(reinterpret_cast<char*>(&dp) + sizeof(InnoCommonHeader), to_read);
     if (ret != to_read) {
       inno_log_warning("can not read data header, read return %d %d", ret, to_read);
       return -1;
     }
     if (header.size < sizeof(InnoDataPacketV1)) {
-      inno_log_warning("bad data header size %u vs %" PRI_SIZELU, header.size, sizeof(InnoDataPacketV1));
+      inno_log_warning(
+          "bad data header size %u vs %" PRI_SIZELU, header.size, sizeof(InnoDataPacketV1));
       /* FIXME array subscript is above array bounds [-Werror=array-bounds]
       inno_log_info("%x %x %x %x %x %x",
                     d_[0], d_[1], d_[2], d_[3], d_[4], d_[5]); */
       return -2;
     }
-    char *read_pt = NULL;
+    char* read_pt = NULL;
     *status_len = 0;
     if (CHECK_SPHERE_POINTCLOUD_DATA(dp.type) || CHECK_XYZ_POINTCLOUD_DATA(dp.type)) {
-      read_pt = reinterpret_cast<char *>(data_packet + 1);
+      read_pt = reinterpret_cast<char*>(data_packet + 1);
       *message_len = 0;
       if (*data_len < header.size) {
         inno_log_warning("not enough buffer message: %" PRI_SIZELU " %u", *data_len, header.size);
@@ -604,7 +649,7 @@ int FileInput::read_packet_(InnoDataPacket *data_packet, size_t *data_len, InnoD
       *data_len = header.size;
       *data_packet = dp;
     } else if (dp.type == INNO_ITEM_TYPE_MESSAGE || dp.type == INNO_ITEM_TYPE_MESSAGE_LOG) {
-      read_pt = reinterpret_cast<char *>(message_packet + 1);
+      read_pt = reinterpret_cast<char*>(message_packet + 1);
       *data_len = 0;
       if (*message_len < header.size) {
         inno_log_warning("not enough buffer message: %" PRI_SIZELU " %u", *data_len, header.size);
@@ -612,7 +657,8 @@ int FileInput::read_packet_(InnoDataPacket *data_packet, size_t *data_len, InnoD
       }
       *message_len = header.size;
       *message_packet = dp;
-    } else if (dp.type == INNO_ROBINE_LITE_TYPE_ANGLEHV_TABLE || dp.type == INNO_ROBINW_ITEM_TYPE_ANGLEHV_TABLE) {
+    } else if (dp.type == INNO_ROBINE_LITE_TYPE_ANGLEHV_TABLE ||
+               dp.type == INNO_ROBINW_ITEM_TYPE_ANGLEHV_TABLE) {
       *lidar_->anglehv_table_ = dp;
       to_read = header.size - sizeof(InnoDataPacket);
       *data_len = 0;
@@ -632,7 +678,7 @@ int FileInput::read_packet_(InnoDataPacket *data_packet, size_t *data_len, InnoD
     }
     to_read = header.size - sizeof(InnoDataPacket);
     if (dp.common.version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1) {
-      char *ptr = read_pt - sizeof(InnoDataPacket);
+      char* ptr = read_pt - sizeof(InnoDataPacket);
       memcpy(ptr + InnoPacketV1Adapt::kMemorryFrontGap, &dp, sizeof(InnoDataPacketV1));
       to_read = header.size - sizeof(InnoDataPacketV1);
     }
@@ -668,7 +714,8 @@ int FileInput::read_data() {
     }
     play_round_++;
     set_first_step(true);
-    inno_log_info("%s rewind file %s %d/%d", lidar_->get_name(), filename_, play_round_, max_file_rewind);
+    inno_log_info(
+        "%s rewind file %s %d/%d", lidar_->get_name(), filename_, play_round_, max_file_rewind);
     return ret;
   } else {
     cannot_open_file_ = true;
@@ -700,10 +747,11 @@ void FileInput::set_file_play_rate() {
 ////////////////////////////// UdpInput //////////////////////////////
 UdpInput::~UdpInput() {
   if (inno_data_diff3_error_counter_) {
-    inno_log_warning(
-        "data packet sub_seq interval over 3 counter:%" PRI_SIZEU " delta:%" PRI_SIZEU " repeat counter:%" PRI_SIZEU,
-        inno_data_diff3_error_counter_, inno_data_diff3_error_counter_ - last_print_inno_data_diff3_error_counter_,
-        inno_data_repeat_error_counter_);
+    inno_log_warning("data packet sub_seq interval over 3 counter:%" PRI_SIZEU " delta:%" PRI_SIZEU
+                     " repeat counter:%" PRI_SIZEU,
+                     inno_data_diff3_error_counter_,
+                     inno_data_diff3_error_counter_ - last_print_inno_data_diff3_error_counter_,
+                     inno_data_repeat_error_counter_);
   }
   if (inno_status_diff3_error_counter_) {
     inno_log_warning("status packet idx interval over 3 counter:%" PRI_SIZEU " delta:%" PRI_SIZEU
@@ -717,18 +765,28 @@ UdpInput::~UdpInput() {
 int UdpInput::bind_udp_port_(uint16_t port) {
   std::vector<InnoUdpOpt> opts;
   if (use_mreq_) {
-    InnoUdpOpt opt = {IPPROTO_IP, IP_ADD_MEMBERSHIP, reinterpret_cast<const void *>(&mreq_),
-                      static_cast<socklen_t>(sizeof(mreq_)), "IP_ADD_MEMBERSHIP"};
+    InnoUdpOpt opt = {IPPROTO_IP,
+                      IP_ADD_MEMBERSHIP,
+                      reinterpret_cast<const void*>(&mreq_),
+                      static_cast<socklen_t>(sizeof(mreq_)),
+                      "IP_ADD_MEMBERSHIP"};
     opts.emplace_back(opt);
   }
   struct timeval tv;
   tv.tv_sec = 0;
   tv.tv_usec = 500000;
-  InnoUdpOpt opt = {SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const void *>(&tv), static_cast<socklen_t>(sizeof(tv)),
+  InnoUdpOpt opt = {SOL_SOCKET,
+                    SO_RCVTIMEO,
+                    reinterpret_cast<const void*>(&tv),
+                    static_cast<socklen_t>(sizeof(tv)),
                     "SO_RCVTIMEO"};
   opts.emplace_back(opt);
   int n = 1024 * 1024;
-  opt = {SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const void *>(&n), static_cast<socklen_t>(sizeof(n)), "SO_RCVBUF"};
+  opt = {SOL_SOCKET,
+         SO_RCVBUF,
+         reinterpret_cast<const void*>(&n),
+         static_cast<socklen_t>(sizeof(n)),
+         "SO_RCVBUF"};
   opts.emplace_back(opt);
   return InnoUdpHelper::bind(port, opts);
 }
@@ -744,7 +802,7 @@ int UdpInput::read_udp_(int32_t port) {
 
   inno_log_info("recvfrom UDP %d", port);
 
-  void *buff = NULL;
+  void* buff = NULL;
   uint32_t specified_ip = lidar_->get_specified_ip();
   int gap = 0;
   while (1) {
@@ -763,22 +821,31 @@ int UdpInput::read_udp_(int32_t port) {
     int n;
 
 #if !(defined(__MINGW64__) || defined(_WIN32))
-    while (-1 == (n = recvfrom(fd, reinterpret_cast<char *>(buff) + gap, kMaxReadSize - gap, MSG_WAITALL,
-                               (struct sockaddr *)&cliaddr, &len)) &&
+    while (-1 == (n = recvfrom(fd,
+                               reinterpret_cast<char*>(buff) + gap,
+                               kMaxReadSize - gap,
+                               MSG_WAITALL,
+                               (struct sockaddr*)&cliaddr,
+                               &len)) &&
            errno == EINTR) {
     }
 #else
-    while (-1 == (n = recvfrom(fd, reinterpret_cast<char *>(buff) + gap, kMaxReadSize - gap, 0,
-                               (struct sockaddr *)&cliaddr, &len)) &&
+    while (-1 == (n = recvfrom(fd,
+                               reinterpret_cast<char*>(buff) + gap,
+                               kMaxReadSize - gap,
+                               0,
+                               (struct sockaddr*)&cliaddr,
+                               &len)) &&
            errno == EINTR) {
     }
 #endif
     if (n < 0) {
       if (errno == EAGAIN || errno == EWOULDBLOCK) {
         if (eagain_count == timeout_flag) {
-          inno_log_info("%s", errno == EAGAIN ?  // EAGAIN means timeout
-                                "EAGAIN"
-                                            : "EWOULDBLOCK");
+          inno_log_info("%s",
+                        errno == EAGAIN ?  // EAGAIN means timeout
+                            "EAGAIN"
+                                        : "EWOULDBLOCK");
           timeout_flag *= 2;
         }
         eagain_count++;
@@ -801,20 +868,21 @@ int UdpInput::read_udp_(int32_t port) {
       }
       if (n >= ssize_t(sizeof(InnoCommonHeader))) {
         union {
-          const InnoDataPacket *data_hd;
-          const InnoStatusPacket *status_hd;
-          InnoCommonHeader *hd;
+          const InnoDataPacket* data_hd;
+          const InnoStatusPacket* status_hd;
+          InnoCommonHeader* hd;
         };
-        hd = reinterpret_cast<InnoCommonHeader *>(reinterpret_cast<char *>(buff) + gap);
+        hd = reinterpret_cast<InnoCommonHeader*>(reinterpret_cast<char*>(buff) + gap);
         bool is_same_data_sub_seq = false;
         bool is_same_status_idx = false;
         if ((hd->version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1 &&
              ((hd->version.magic_number == kInnoMagicNumberDataPacket &&
                verify_inno_data_packet_counter(*data_hd, &is_same_data_sub_seq) &&
-               (InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(reinterpret_cast<char **>(&hd), n, gap))) ||
+               (InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(
+                   reinterpret_cast<char**>(&hd), n, gap))) ||
               (hd->version.magic_number == kInnoMagicNumberStatusPacket &&
-               InnoPacketV1Adapt::check_status_packet_v1_and_convert_packet(reinterpret_cast<char **>(&hd), n,
-                                                                            gap)))) ||
+               InnoPacketV1Adapt::check_status_packet_v1_and_convert_packet(
+                   reinterpret_cast<char**>(&hd), n, gap)))) ||
             (hd->version.major_version > InnoPacketV1Adapt::kInnoProtocolMajorV1 &&
              ((hd->version.magic_number == kInnoMagicNumberDataPacket &&
                InnoDataPacketUtils::check_data_packet(*data_hd, n) &&
@@ -824,15 +892,18 @@ int UdpInput::read_udp_(int32_t port) {
                verify_inno_status_packet_counter(*status_hd, &is_same_status_idx))))) {
           if (misorder_correct_enable_ &&
               ((hd->version.magic_number == kInnoMagicNumberDataPacket) &&
-               (CHECK_XYZ_POINTCLOUD_DATA(data_hd->type) || CHECK_SPHERE_POINTCLOUD_DATA(data_hd->type)))) {
-            deliver_packet_after_correct_callback_(reinterpret_cast<InnoDataPacket *>(hd));
+               (CHECK_XYZ_POINTCLOUD_DATA(data_hd->type) ||
+                CHECK_SPHERE_POINTCLOUD_DATA(data_hd->type)))) {
+            deliver_packet_after_correct_callback_(reinterpret_cast<InnoDataPacket*>(hd));
           } else {
             deliver_packet_callback_(hd);
           }
           buff = NULL;
         } else {
           if (is_same_data_sub_seq) {
-            inno_log_warning("same data packet - idx:%" PRI_SIZEU " sub_seq: %u", data_hd->idx, data_hd->sub_seq);
+            inno_log_warning("same data packet - idx:%" PRI_SIZEU " sub_seq: %u",
+                             data_hd->idx,
+                             data_hd->sub_seq);
           } else if (is_same_status_idx) {
             inno_log_warning("same status packet - idx:%" PRI_SIZEU, status_hd->idx);
           } else {
@@ -864,8 +935,8 @@ int UdpInput::read_data() {
   for (int round = 0; round < 2; round++) {
     int get_interval_count = 0;
     while (true) {
-      ret =
-          lidar_->comm_->get_server_udp_ports_ip(&ports[0], &ports[1], &ports[2], ip, sizeof(ip), my_ip, sizeof(my_ip));
+      ret = lidar_->comm_->get_server_udp_ports_ip(
+          &ports[0], &ports[1], &ports[2], ip, sizeof(ip), my_ip, sizeof(my_ip));
       if (ret != 0) {
         inno_log_error("cannot get server udp ports %d", ret);
         if (get_interval_count == 5) {
@@ -874,10 +945,15 @@ int UdpInput::read_data() {
         if (!start_flag_) {
           return 0;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(kGetUdpPortIntervalMsArray[get_interval_count]));
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(kGetUdpPortIntervalMsArray[get_interval_count]));
         get_interval_count += 1;
       } else {
-        inno_log_info("read udps: data:%d message:%d status:%d ip=%s my_ip=%s", ports[0], ports[1], ports[2], ip,
+        inno_log_info("read udps: data:%d message:%d status:%d ip=%s my_ip=%s",
+                      ports[0],
+                      ports[1],
+                      ports[2],
+                      ip,
                       my_ip);
         break;
       }
@@ -922,7 +998,7 @@ int UdpInput::read_data() {
     }
   }
 
-  std::vector<std::thread *> threads;
+  std::vector<std::thread*> threads;
 
   for (size_t i = 0; i < kPortsCount; i++) {
     if (ports[i]) {
@@ -930,18 +1006,17 @@ int UdpInput::read_data() {
     }
   }
 
-  for (auto &th : threads) {
+  for (auto& th : threads) {
     th->join();
     delete th;
   }
   return 0;
 }
 
-bool UdpInput::verify_inno_data_packet_counter(const InnoDataPacket &pkt, bool* same_data_sub_seq) {
+bool UdpInput::verify_inno_data_packet_counter(const InnoDataPacket& pkt, bool* same_data_sub_seq) {
   // massgae, return
   if (pkt.type == INNO_ITEM_TYPE_MESSAGE || pkt.type == INNO_ITEM_TYPE_MESSAGE_LOG ||
-      pkt.type == INNO_ROBINW_ITEM_TYPE_ANGLEHV_TABLE ||
-      pkt.type == INNO_FALCON_RING_ID_TABLE) {
+      pkt.type == INNO_ROBINW_ITEM_TYPE_ANGLEHV_TABLE || pkt.type == INNO_FALCON_RING_ID_TABLE) {
     return true;
   }
   // check first five data packets sub_seq if is always 0, if sub_seq always 0, means old firmware,
@@ -968,10 +1043,11 @@ bool UdpInput::verify_inno_data_packet_counter(const InnoDataPacket &pkt, bool* 
   if (verify_counter_process(pkt.sub_seq, inno_data_last_sub_seq_)) {
     inno_data_diff3_error_counter_++;
     if (InnoUtils::get_time_ms() - last_print_data_diff_time_ > kPrintPacketDiffIntervalMs) {
-      inno_log_warning(
-          "data packet sub_seq interval over 3 counter:%" PRI_SIZEU " delta:%" PRI_SIZEU " repeat counter:%" PRI_SIZEU,
-          inno_data_diff3_error_counter_, inno_data_diff3_error_counter_ - last_print_inno_data_diff3_error_counter_,
-          inno_data_repeat_error_counter_);
+      inno_log_warning("data packet sub_seq interval over 3 counter:%" PRI_SIZEU
+                       " delta:%" PRI_SIZEU " repeat counter:%" PRI_SIZEU,
+                       inno_data_diff3_error_counter_,
+                       inno_data_diff3_error_counter_ - last_print_inno_data_diff3_error_counter_,
+                       inno_data_repeat_error_counter_);
 
       last_print_inno_data_diff3_error_counter_ = inno_data_diff3_error_counter_;
       last_print_data_diff_time_ = InnoUtils::get_time_ms();
@@ -982,7 +1058,8 @@ bool UdpInput::verify_inno_data_packet_counter(const InnoDataPacket &pkt, bool* 
   return true;
 }
 
-bool UdpInput::verify_inno_status_packet_counter(const InnoStatusPacket &pkt, bool* same_status_sub_seq) {
+bool UdpInput::verify_inno_status_packet_counter(const InnoStatusPacket& pkt,
+                                                 bool* same_status_sub_seq) {
   // only use 16 bit.
   uint16_t current_idx = pkt.idx;
 
@@ -1003,11 +1080,12 @@ bool UdpInput::verify_inno_status_packet_counter(const InnoStatusPacket &pkt, bo
   if (verify_counter_process(current_idx, inno_status_last_idx_)) {
     inno_status_diff3_error_counter_++;
     if (InnoUtils::get_time_ms() - last_print_status_diff_time_ > kPrintPacketDiffIntervalMs) {
-      inno_log_warning("status packet idx interval over 3 counter:%" PRI_SIZEU " delta:%" PRI_SIZEU
-                       " repeat counter:%" PRI_SIZEU,
-                       inno_status_diff3_error_counter_,
-                       inno_status_diff3_error_counter_ - last_print_inno_status_diff3_error_counter_,
-                       inno_status_repeat_error_counter_);
+      inno_log_warning(
+          "status packet idx interval over 3 counter:%" PRI_SIZEU " delta:%" PRI_SIZEU
+          " repeat counter:%" PRI_SIZEU,
+          inno_status_diff3_error_counter_,
+          inno_status_diff3_error_counter_ - last_print_inno_status_diff3_error_counter_,
+          inno_status_repeat_error_counter_);
       last_print_inno_status_diff3_error_counter_ = inno_status_diff3_error_counter_;
       last_print_status_diff_time_ = InnoUtils::get_time_ms();
     }
@@ -1033,18 +1111,16 @@ bool UdpInput::verify_counter_process(int current, int last) {
   // special_number_min_end = 3 - 1 = 2
   int special_number_min_end = max_delta_counter_init_ - 1;
 
-  bool special_case =
-    ((((last <= special_number_max_end) && (last >= special_number_max_start)) ||
-    ((last <= special_number_min_end) && (last >= special_number_min_start)))
-    &&
-    (std::abs(current - last) > edge_min_value));
+  bool special_case = ((((last <= special_number_max_end) && (last >= special_number_max_start)) ||
+                        ((last <= special_number_min_end) && (last >= special_number_min_start))) &&
+                       (std::abs(current - last) > edge_min_value));
 
   bool basic_case = (std::abs(current - last) <= max_delta_counter_init_);
   return !(special_case || basic_case);
 }
 
 ////////////////////////////// TcpInput //////////////////////////////
-int TcpInput::read_fd_(char *buf, size_t len) {
+int TcpInput::read_fd_(char* buf, size_t len) {
   return innovusion::NetManager::recv_full_buffer(fd_, buf, len, 0);
 }
 

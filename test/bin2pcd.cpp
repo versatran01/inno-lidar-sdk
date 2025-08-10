@@ -39,11 +39,19 @@ std::vector<fs::path> GetAllFiles(const fs::path& dir,
   return files;
 }
 
+void FixInnoDataPacketV1(const InnoDataPacket* p) {
+  auto* packet = const_cast<InnoDataPacket*>(p);
+  packet->common.size += 16;
+  packet->common.version.major_version = InnoPacketV1Adapt::kInnoProtocolMajorV2;
+  packet->common.version.minor_version = InnoPacketV1Adapt::kInnoProtocolMinorV2;
+  InnoPacketReader::set_packet_crc32(&packet->common);
+}
+
 class InnoLidarParser {
  public:
-  bool ProcessData(std::vector<char> data) {
+  bool ProcessData(const std::vector<char>& data) {
     // Cast to header
-    auto* header = reinterpret_cast<InnoCommonHeader*>(data.data());
+    const auto* header = reinterpret_cast<const InnoCommonHeader*>(data.data());
 
     if (header->version.magic_number == kInnoMagicNumberStatusPacket) {
       LOG(INFO) << "Status packet";
@@ -56,32 +64,51 @@ class InnoLidarParser {
     }
 
     const auto* packet = reinterpret_cast<const InnoDataPacket*>(data.data());
-    if (!inno_lidar_check_data_packet(packet, 0)) {
-      LOG(INFO) << "Bad packet size";
-    }
+    FixInnoDataPacketV1(packet);
+    CHECK(inno_lidar_check_data_packet(packet, 0));
 
-    if (header->version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1) {
-      LOG(INFO) << "Convert V1";
-      int gap = InnoPacketV1Adapt::kMemorryFrontGap;
-      char* ptr = data.data() + gap;
-      if (!InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(&ptr, 0, gap)) {
-        LOG(WARNING) << "Got bad message";
-      }
-    }
+    LOG(INFO) << fmt::format(
+        "idx: {:3d}, sub_idx: {:3d}, sub_seq: {:5d}, "
+        "item: {:3d}, first: {}, last: {}",
+        packet->idx,
+        packet->sub_idx,
+        packet->sub_seq,
+        packet->item_number,
+        packet->is_first_sub_frame,
+        packet->is_last_sub_frame);
+
+    // for (std::size_t i = 0; i + 1 < data.size() && i < 500; ++i) {
+    //   std::uint16_t value;
+    //   std::memcpy(&value, &data[i], 2);
+    //   LOG(INFO) << fmt::format("data[{}]: {:#x}", i, value);
+    // }
+
+    // int gap = 0;
+    // if (packet->common.version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1) {
+    //   char* ptr = const_cast<char*>(data.data());
+    //   if (InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(&ptr, 0, gap)) {
+    //     LOG(INFO) << "Converted V1 packet";
+    //   } else {
+    //     LOG(WARNING) << "Got bad message";
+    //   }
+    // }
+    // inno_lidar_check_data_packet(packet, 0);
+
+    // if (!inno_lidar_check_data_packet(packet, 0)) {
+    //   LOG(INFO) << "Bad packet size";
+    // }
+
+    // if (header->version.major_version == InnoPacketV1Adapt::kInnoProtocolMajorV1) {
+    //   LOG(INFO) << "Convert V1";
+    //   int gap = InnoPacketV1Adapt::kMemorryFrontGap;
+    //   char* ptr = data.data() + gap;
+    //   if (!InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(&ptr, 0, gap)) {
+    //     LOG(WARNING) << "Got bad message";
+    //   }
+    // }
 
     // char *ptr = reinterpret_cast<char *>(data.data()) +
     //             InnoPacketV1Adapt::kMemorryFrontGap;
-    // if ((packet->common.version.major_version ==
-    //      InnoPacketV1Adapt::kInnoProtocolMajorV1) &&
-    //     InnoPacketV1Adapt::check_data_packet_v1_and_convert_packet(&ptr, 0,
-    //                                                                gap_)) {
-    // }
-
-    // LOG(INFO) << fmt::format("idx: {:3d}, sub_idx: {:3d}, sub_seq: {:5d}, "
-    //                          "item: {:3d}, first: {}, last: {}",
-    //                          packet->idx, packet->sub_idx, packet->sub_seq,
-    //                          packet->item_number, packet->is_first_sub_frame,
-    //                          packet->is_last_sub_frame);
 
     // const int frame_id = packet->idx;
 
@@ -144,6 +171,7 @@ int main(int argc, char** argv) {
 
     // Read the binary data to a vector of bytes
     std::vector<char> data((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    data.resize(data.size() + 16);
 
     parser.ProcessData(data);
   }

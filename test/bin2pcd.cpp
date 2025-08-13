@@ -1,8 +1,8 @@
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <istream>
-#include <optional>
+#include <map>
 #include <vector>
 
 //
@@ -17,7 +17,6 @@
 
 //
 #include "sdk_client/inno_lidar_packet_v1_adapt.h"
-#include "sdk_common/inno_lidar_api.h"
 #include "sdk_common/inno_lidar_other_api.h"
 #include "sdk_common/inno_lidar_packet.h"
 #include "sdk_common/inno_lidar_packet_utils.h"
@@ -33,6 +32,8 @@ struct PointInnoLidar {
       uint8_t chan;   // 1b
       uint8_t scan;   // 1b
       uint16_t fire;  // 2b
+      uint16_t beam;  // 2b
+      int16_t elev;   // 2b
     };
   };
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // Ensure correct memory alignment
@@ -47,6 +48,8 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(PointInnoLidar,
                                   (uint8_t, chan, chan)   //
                                   (uint8_t, scan, scan)   //
                                   (uint16_t, fire, fire)  //
+                                  (uint16_t, beam, beam)  //
+                                  (int16_t, elev, elev)   //
 )
 
 // Get all files in a directory with a specific extension
@@ -75,9 +78,28 @@ void FixInnoDataPacketV1(InnoDataPacket* p, int pad) {
   InnoPacketReader::set_packet_crc32(&p->common);
 }
 
+class RingIdMapper {
+ public:
+  int GetRingId(const int beam) const {
+    CHECK_LE(0, beam);
+    CHECK_LT(beam, static_cast<int>(beam2ring_.size()));
+    return beam2ring_.at(beam);
+  }
+
+  bool Initialized() const { return !beam2ring_.empty(); }
+
+  void AddBeamElevation(int beam, uint16_t elevation) {
+    beam_elevations_[beam].push_back(elevation);
+  }
+
+ private:
+  std::map<int, std::vector<uint16_t>> beam_elevations_;
+  std::vector<int> beam2ring_;
+};
+
 class InnoLidarParser {
  public:
-  bool GotFullFrame() const { return got_full_frame_; }
+  bool scan_complete() const { return scan_complete_; }
 
   void ProcessData(const std::vector<char>& data) {
     // Cast to header
@@ -122,15 +144,14 @@ class InnoLidarParser {
     }
 
     if (packet->is_last_sub_frame) {
-      got_full_frame_ = true;
+      scan_complete_ = true;
       LOG(INFO) << "Got last frame for: " << packet->idx;
     } else {
-      got_full_frame_ = false;
+      scan_complete_ = false;
     }
+
     // Add packet to frame
     DecodePayload(*packet);
-
-    prev_packet_ = *packet;
   }
 
   const auto& cloud() const { return cloud_; }
@@ -187,14 +208,18 @@ class InnoLidarParser {
                              block.header.facet);
 
       for (uint32_t chan = 0; chan < kInnoChannelNumber; chan++) {
+        const auto beam = block.header.scan_id * kInnoChannelNumber + chan;
+
         for (uint32_t ret = 0; ret < num_return; ret++) {
           const InnoChannelPoint& pt = block.points[innoblock_get_idx(chan, ret)];
-          VLOG(3) << fmt::format("    [T] chan: {}, type: {}, refl: {}, radius: {}, elongation: {}",
-                                 chan,
-                                 pt.type,
-                                 pt.refl,
-                                 pt.radius,
-                                 pt.elongation);
+          VLOG(3) << fmt::format(
+              "    [T] chan: {}, type: {}, refl: {}, radius: {}, elongation: {}, elev: {:3d}",
+              chan,
+              pt.type,
+              pt.refl,
+              pt.radius,
+              pt.elongation,
+              full_angles.angles[chan].v_angle);
           InnoXyzrD xyzr{};
 
           if (pt.radius > 0) {
@@ -208,6 +233,8 @@ class InnoLidarParser {
             pcl_pt.elon = pt.elongation;
             pcl_pt.scan = block.header.scan_id;
             pcl_pt.fire = block.header.scan_idx;
+            pcl_pt.beam = static_cast<uint16_t>(beam);
+            pcl_pt.elev = full_angles.angles[chan].v_angle;
             cloud_.push_back(pcl_pt);
           }
         }
@@ -217,11 +244,11 @@ class InnoLidarParser {
 
  private:
   bool got_first_frame_{false};
-  bool got_full_frame_{false};
+  bool scan_complete_{false};
 
   std::vector<char> fixed_;
+  RingIdMapper ring_mapper_;
   pcl::PointCloud<PointInnoLidar> cloud_;
-  std::optional<InnoDataPacket> prev_packet_;
 };
 
 int main(int argc, char** argv) {
@@ -271,7 +298,7 @@ int main(int argc, char** argv) {
 
     parser.ProcessData(data);
 
-    if (parser.GotFullFrame()) {
+    if (parser.scan_complete()) {
       const auto pcd_file = fmt::format("{}/{:05d}.pcd", output_dir, n++);
       pcl::io::savePCDFile(pcd_file, parser.cloud());
       LOG(INFO) << "Saved PCD file: " << pcd_file;
